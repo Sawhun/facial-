@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Employees - SmartFace Attendance Pro{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div class="page-title">
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-people"></i>
+            Employees
+        </h2>
+        <p class="text-muted mb-0">Manage registered employees</p>
+    </div>
+    <a href="{{ url_for('enroll') }}" class="btn btn-primary">
+        <i class="bi bi-person-plus me-2"></i>Enroll New Employee
+    </a>
+</div>
+
+<!-- Employees Card -->
+<div class="card">
+    <div class="card-body p-0">
+        {% if employees %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Photo</th>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Today's Status</th>
+                        <th>Registered</th>
+                        <th class="text-center" style="width: 140px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for employee in employees %}
+                    <tr class="animate-fadeIn">
+                        <td>
+                            <img src="{{ url_for('get_employee_image', id=employee.id) }}"
+                                 class="avatar"
+                                 style="width: 50px; height: 50px;"
+                                 alt="{{ employee.full_name }}"
+                                 onerror="this.onerror=null; this.outerHTML='<div class=\'avatar-placeholder\' style=\'width: 50px; height: 50px;\'>{{ employee.full_name[0] }}</div>'">
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ employee.full_name }}</div>
+                            <small class="text-muted">
+                                <code>{{ employee.employee_id }}</code>
+                            </small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ employee.department }}</span>
+                        </td>
+                        <td>
+                            {% if today_attendances and employee.id in today_attendances %}
+                                {% set att = today_attendances[employee.id] %}
+                                <div class="d-flex flex-column gap-1">
+                                    <div class="small d-flex align-items-center gap-2">
+                                        <i class="bi bi-box-arrow-in-right text-success"></i>
+                                        <span>{{ att.clock_in_time.strftime('%H:%M') }}</span>
+                                        {% if att.is_late %}
+                                        <span class="badge bg-warning" style="font-size: 0.65rem;">Late</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if att.clock_out_time %}
+                                    <div class="small d-flex align-items-center gap-2">
+                                        <i class="bi bi-box-arrow-right text-danger"></i>
+                                        <span>{{ att.clock_out_time.strftime('%H:%M') }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted small d-flex align-items-center gap-1">
+                                    <i class="bi bi-dash-circle"></i>
+                                    Not clocked in
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ employee.registered_at.strftime('%Y-%m-%d') }}</small>
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex gap-2 justify-content-center">
+                                <a href="{{ url_for('update_employee', id=employee.id) }}"
+                                   class="btn btn-sm btn-outline-primary" title="Edit Employee">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger" title="Delete Employee"
+                                        data-bs-toggle="modal" data-bs-target="#deleteModal{{ employee.id }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-people text-muted" style="font-size: 5rem;"></i>
+            </div>
+            <h4 class="fw-bold mb-2">No Employees Yet</h4>
+            <p class="text-muted mb-4">Start by enrolling your first employee</p>
+            <a href="{{ url_for('enroll') }}" class="btn btn-primary btn-lg">
+                <i class="bi bi-person-plus me-2"></i>Enroll Employee
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if employees %}
+<div class="mt-3">
+    <span class="badge bg-secondary">
+        <i class="bi bi-people me-1"></i>
+        {{ employees|length }} employee(s) registered
+    </span>
+</div>
+
+<!-- Delete Modals -->
+{% for employee in employees %}
+<div class="modal fade" id="deleteModal{{ employee.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ employee.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="deleteModalLabel{{ employee.id }}">
+                    <i class="bi bi-exclamation-triangle text-danger"></i>
+                    Confirm Delete
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="avatar-placeholder" style="width: 60px; height: 60px; font-size: 1.5rem;">
+                        {{ employee.full_name[0] }}
+                    </div>
+                    <div>
+                        <h5 class="mb-0">{{ employee.full_name }}</h5>
+                        <small class="text-muted">{{ employee.employee_id }}</small>
+                    </div>
+                </div>
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    This will permanently delete the employee's face data and all attendance records. This action cannot be undone.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <form action="{{ url_for('delete_employee', id=employee.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-2"></i>Delete Employee
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Records - SmartFace Attendance Pro{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-title mb-4">
+    <h2 class="fw-bold mb-1">
+        <i class="bi bi-calendar-check"></i>
+        Attendance Records
+    </h2>
+    <p class="text-muted mb-0">View and export attendance history</p>
+</div>
+
+<!-- Filters Card -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('records') }}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="startDate" class="form-label fw-semibold">
+                    <i class="bi bi-calendar-event me-1"></i>Start Date
+                </label>
+                <input type="date" class="form-control" id="startDate" name="start_date" value="{{ start_date or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="endDate" class="form-label fw-semibold">
+                    <i class="bi bi-calendar-event me-1"></i>End Date
+                </label>
+                <input type="date" class="form-control" id="endDate" name="end_date" value="{{ end_date or '' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="employeeFilter" class="form-label fw-semibold">
+                    <i class="bi bi-person me-1"></i>Employee
+                </label>
+                <select class="form-select" id="employeeFilter" name="employee_id">
+                    <option value="">All Employees</option>
+                    {% for emp in all_employees %}
+                    <option value="{{ emp.employee_id }}" {{ 'selected' if employee_filter == emp.employee_id else '' }}>
+                        {{ emp.full_name }} ({{ emp.employee_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="bi bi-funnel me-2"></i>Filter
+                    </button>
+                    <a href="{{ url_for('records') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Records Card -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-table text-gradient"></i>
+            Records
+        </h5>
+        {% if attendances %}
+        <a href="{{ url_for('export_records', start_date=start_date, end_date=end_date) }}" class="btn btn-success btn-sm">
+            <i class="bi bi-download me-2"></i>Export to CSV
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        {% if attendances %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Date</th>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Clock In</th>
+                        <th>Clock Out</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for att in attendances %}
+                    <tr class="animate-fadeIn">
+                        <td class="text-muted">{{ loop.index }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ att.date.strftime('%Y-%m-%d') }}</div>
+                            <small class="text-muted">{{ att.date.strftime('%A') }}</small>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="{{ url_for('get_employee_image', id=att.employee.id) }}"
+                                     class="avatar"
+                                     style="width: 36px; height: 36px;"
+                                     onerror="this.onerror=null; this.outerHTML='<div class=\'avatar-placeholder\' style=\'width: 36px; height: 36px; font-size: 0.9rem;\'>{{ att.employee.full_name[0] }}</div>'">
+                                <div>
+                                    <div class="fw-medium">{{ att.employee.full_name }}</div>
+                                    <small class="text-muted">{{ att.employee.employee_id }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ att.employee.department }}</span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-box-arrow-in-right text-success"></i>
+                                <span class="fw-medium">{{ att.clock_in_time.strftime('%H:%M:%S') }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if att.clock_out_time %}
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-box-arrow-right text-danger"></i>
+                                <span>{{ att.clock_out_time.strftime('%H:%M:%S') }}</span>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if att.work_duration %}
+                            <span class="badge bg-info">{{ att.work_duration }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if att.is_late %}
+                            <span class="badge bg-warning">
+                                <i class="bi bi-clock me-1"></i>Late
+                            </span>
+                            {% else %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check me-1"></i>On Time
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-calendar-x text-muted" style="font-size: 5rem;"></i>
+            </div>
+            <h4 class="fw-bold mb-2">No Records Found</h4>
+            <p class="text-muted mb-4">
+                {% if start_date or end_date or employee_filter %}
+                No attendance records found for the selected filters.
+                {% else %}
+                No attendance records available yet.
+                {% endif %}
+            </p>
+            {% if start_date or end_date or employee_filter %}
+            <a href="{{ url_for('records') }}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left me-2"></i>Clear Filters
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if attendances %}
+<div class="mt-3">
+    <span class="badge bg-secondary">
+        <i class="bi bi-list-ul me-1"></i>
+        {{ attendances|length }} record(s)
+        {% if start_date and end_date %}
+        from {{ start_date }} to {{ end_date }}
+        {% elif start_date %}
+        from {{ start_date }}
+        {% elif end_date %}
+        until {{ end_date }}
+        {% endif %}
+        {% if employee_filter %}
+        for employee {{ employee_filter }}
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - SmartFace Attendance Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-card {
+        transition: all 0.3s ease;
+    }
+
+    .settings-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .threshold-display {
+        font-size: 2rem;
+        font-weight: 800;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .security-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 0.75rem 0;
+    }
+
+    .security-item i {
+        color: var(--success);
+        font-size: 1.1rem;
+        margin-top: 2px;
+    }
+
+    .tip-card {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        border-radius: 16px;
+    }
+
+    [data-bs-theme="dark"] .tip-card {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%);
+    }
+
+    .time-select-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .time-select-group .form-select {
+        flex: 1;
+    }
+
+    .time-select-group .separator {
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-title mb-4">
+    <h2 class="fw-bold mb-1">
+        <i class="bi bi-gear"></i>
+        System Settings
+    </h2>
+    <p class="text-muted mb-0">Configure attendance and recognition settings</p>
+</div>
+
+<form method="POST" action="{{ url_for('settings_page') }}">
+    <div class="row g-4">
+        <!-- Left Column -->
+        <div class="col-lg-6">
+            <!-- Work Hours Card -->
+            <div class="card settings-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-clock text-gradient"></i>
+                        Work Hours
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Work Start Time</label>
+                            <div class="time-select-group">
+                                <select class="form-select" name="work_start_hour">
+                                    {% for h in range(0, 24) %}
+                                    <option value="{{ h }}" {{ 'selected' if settings and settings.work_start_hour == h else ('selected' if not settings and h == 9 else '') }}>{{ '%02d'|format(h) }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="separator">:</span>
+                                <select class="form-select" name="work_start_minute">
+                                    {% for m in range(0, 60, 5) %}
+                                    <option value="{{ m }}" {{ 'selected' if settings and settings.work_start_minute == m else ('selected' if not settings and m == 0 else '') }}>{{ '%02d'|format(m) }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-text">Employees arriving after this are marked late</div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Work End Time</label>
+                            <div class="time-select-group">
+                                <select class="form-select" name="work_end_hour">
+                                    {% for h in range(0, 24) %}
+                                    <option value="{{ h }}" {{ 'selected' if settings and settings.work_end_hour == h else ('selected' if not settings and h == 17 else '') }}>{{ '%02d'|format(h) }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="separator">:</span>
+                                <select class="form-select" name="work_end_minute">
+                                    {% for m in range(0, 60, 5) %}
+                                    <option value="{{ m }}" {{ 'selected' if settings and settings.work_end_minute == m else ('selected' if not settings and m == 0 else '') }}>{{ '%02d'|format(m) }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-text">Standard end of work day</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recognition Settings Card -->
+            <div class="card settings-card">
+                <div class="card-header">
+                    <h5 class="mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-cpu text-gradient"></i>
+                        Recognition Settings
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Threshold Slider -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <label class="form-label fw-semibold mb-0">Recognition Threshold</label>
+                            <span class="threshold-display" id="thresholdValue">{{ ((settings.recognition_threshold if settings else 0.55) * 100)|round(0) }}%</span>
+                        </div>
+                        <input type="range" class="form-range" id="thresholdRange" name="recognition_threshold"
+                               min="0.3" max="0.9" step="0.05"
+                               value="{{ settings.recognition_threshold if settings else 0.55 }}"
+                               oninput="updateThresholdDisplay(this.value)">
+                        <div class="d-flex justify-content-between mt-2">
+                            <small class="text-muted">
+                                <i class="bi bi-shield-check me-1"></i>Stricter
+                            </small>
+                            <small class="text-muted">
+                                <i class="bi bi-shield me-1"></i>Lenient
+                            </small>
+                        </div>
+                        <div class="form-text mt-2">
+                            Higher values require stricter face matching. Recommended: 50-60%
+                        </div>
+                    </div>
+
+                    <!-- Anti-Spoofing Toggle -->
+                    <div class="d-flex justify-content-between align-items-start p-3 rounded-3" style="background: var(--bg-tertiary);">
+                        <div>
+                            <h6 class="fw-bold mb-1">Anti-Spoofing Protection</h6>
+                            <small class="text-muted">
+                                Prevents recognition from photos or video screens. May slightly increase processing time.
+                            </small>
+                        </div>
+                        <div class="form-check form-switch ms-3">
+                            <input class="form-check-input" type="checkbox" id="antiSpoofing" name="anti_spoofing_enabled"
+                                   {{ 'checked' if settings and settings.anti_spoofing_enabled else ('checked' if not settings else '') }}>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-lg-6">
+            <!-- System Information Card -->
+            <div class="card settings-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle text-gradient"></i>
+                        System Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="info-item">
+                        <span class="text-muted">Face Recognition Model</span>
+                        <span class="badge bg-primary">ArcFace</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="text-muted">Face Detector</span>
+                        <span class="badge bg-info">RetinaFace</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="text-muted">Embedding Dimensions</span>
+                        <span class="badge bg-secondary">512</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="text-muted">Database</span>
+                        <span class="badge bg-secondary">SQLite</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="text-muted">Framework</span>
+                        <span class="badge bg-secondary">Flask + DeepFace</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Notes Card -->
+            <div class="card settings-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-shield-check text-gradient"></i>
+                        Security Notes
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="security-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>Face embeddings are encrypted and stored securely</span>
+                    </div>
+                    <div class="security-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>Original face images are stored locally</span>
+                    </div>
+                    <div class="security-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>All data is processed on-premise</span>
+                    </div>
+                    <div class="security-item">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <span>No cloud services required</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tip Card -->
+            <div class="tip-card p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-lightbulb text-warning fs-4"></i>
+                    <div>
+                        <h6 class="fw-bold mb-2">Pro Tip</h6>
+                        <p class="mb-0 text-muted">
+                            If recognition accuracy is low, try adjusting the threshold or re-enrolling employees with better quality photos in good lighting conditions.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="mt-4 d-flex gap-3">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg me-2"></i>Save Settings
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-lg">
+            Cancel
+        </a>
+    </div>
+</form>
+
+<script>
+function updateThresholdDisplay(value) {
+    document.getElementById('thresholdValue').textContent = Math.round(value * 100) + '%';
+}
+</script>
+{% endblock %}

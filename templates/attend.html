@@ -1,0 +1,1104 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance - SmartFace Attendance Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        overflow: hidden;
+        background: linear-gradient(135deg, #0a0a1a 0%, #0f0f23 25%, #1e1b4b 50%, #312e81 75%, #1e1b4b 100%);
+        background-size: 400% 400%;
+        animation: gradientFlow 15s ease infinite;
+    }
+
+    @keyframes gradientFlow {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+
+    .attend-container {
+        min-height: 100vh;
+        position: relative;
+    }
+
+    /* Premium Animated Background */
+    .bg-particles {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 0;
+    }
+
+    .bg-particles::before,
+    .bg-particles::after {
+        content: '';
+        position: absolute;
+        width: 800px;
+        height: 800px;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.15;
+        animation: float-bg 25s ease-in-out infinite;
+    }
+
+    .bg-particles::before {
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+        top: -400px;
+        right: -400px;
+    }
+
+    .bg-particles::after {
+        background: linear-gradient(135deg, #10b981 0%, #14b8a6 50%, #22d3ee 100%);
+        bottom: -400px;
+        left: -400px;
+        animation-delay: -12s;
+    }
+
+    /* Extra floating orb */
+    .bg-particles .orb {
+        position: absolute;
+        width: 500px;
+        height: 500px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation: pulse-orb 8s ease-in-out infinite;
+    }
+
+    @keyframes pulse-orb {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+        50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.15; }
+    }
+
+    @keyframes float-bg {
+        0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+        25% { transform: translate(50px, -50px) rotate(90deg) scale(1.1); }
+        50% { transform: translate(0, 50px) rotate(180deg) scale(1); }
+        75% { transform: translate(-50px, -25px) rotate(270deg) scale(1.05); }
+    }
+
+    /* Grid overlay for depth */
+    .grid-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image:
+            linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+        background-size: 50px 50px;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .time-display {
+        font-size: 5.5rem;
+        font-weight: 900;
+        letter-spacing: 6px;
+        background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 50%, #c7d2fe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        filter: drop-shadow(0 0 40px rgba(99, 102, 241, 0.4));
+        text-shadow: none;
+    }
+
+    .date-display {
+        font-size: 1.25rem;
+        color: rgba(255, 255, 255, 0.6);
+        letter-spacing: 3px;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+
+    .webcam-container {
+        position: relative;
+        border-radius: 28px;
+        overflow: hidden;
+        box-shadow:
+            0 30px 100px rgba(0, 0, 0, 0.6),
+            0 0 80px rgba(99, 102, 241, 0.15),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%);
+    }
+
+    .clock-in-mode .webcam-container {
+        border: 3px solid transparent;
+        background: linear-gradient(#0a0a1a, #0a0a1a) padding-box,
+                    linear-gradient(135deg, #10b981 0%, #14b8a6 50%, #22d3ee 100%) border-box;
+        box-shadow:
+            0 30px 100px rgba(0, 0, 0, 0.6),
+            0 0 80px rgba(16, 185, 129, 0.25),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .clock-out-mode .webcam-container {
+        border: 3px solid transparent;
+        background: linear-gradient(#0a0a1a, #0a0a1a) padding-box,
+                    linear-gradient(135deg, #ef4444 0%, #f97316 100%) border-box;
+        box-shadow:
+            0 30px 100px rgba(0, 0, 0, 0.6),
+            0 0 80px rgba(239, 68, 68, 0.25),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .webcam-video {
+        width: 100%;
+        max-height: 55vh;
+        object-fit: cover;
+        transform: scaleX(-1);
+        display: block;
+    }
+
+    .scan-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+    }
+
+    .scan-line {
+        position: absolute;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, transparent 0%, #10b981 20%, #22d3ee 50%, #10b981 80%, transparent 100%);
+        box-shadow:
+            0 0 20px rgba(16, 185, 129, 0.8),
+            0 0 40px rgba(34, 211, 238, 0.4),
+            0 0 60px rgba(16, 185, 129, 0.2);
+        animation: scan 2.5s ease-in-out infinite;
+    }
+
+    .scan-line.clock-out {
+        background: linear-gradient(90deg, transparent 0%, #ef4444 20%, #f97316 50%, #ef4444 80%, transparent 100%);
+        box-shadow:
+            0 0 20px rgba(239, 68, 68, 0.8),
+            0 0 40px rgba(249, 115, 22, 0.4),
+            0 0 60px rgba(239, 68, 68, 0.2);
+    }
+
+    @keyframes scan {
+        0% { top: 0; opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { top: 100%; opacity: 0; }
+    }
+
+    .face-guide {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 200px;
+        height: 260px;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        pointer-events: none;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .face-guide::before {
+        content: '';
+        position: absolute;
+        inset: -10px;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        border-radius: 50%;
+        animation: pulse-ring 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-ring {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.05); opacity: 0.2; }
+    }
+
+    .face-guide.detected {
+        border-color: #10b981;
+        border-style: solid;
+        box-shadow:
+            0 0 30px rgba(16, 185, 129, 0.4),
+            inset 0 0 30px rgba(16, 185, 129, 0.1);
+    }
+
+    .face-guide.detected::before {
+        border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .recognition-result {
+        position: absolute;
+        bottom: 24px;
+        left: 24px;
+        right: 24px;
+        padding: 20px 28px;
+        border-radius: 20px;
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    @keyframes slideUp {
+        from { transform: translateY(30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .result-success {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.92) 0%, rgba(20, 184, 166, 0.92) 50%, rgba(34, 211, 238, 0.92) 100%);
+        color: white;
+        box-shadow: 0 15px 50px rgba(16, 185, 129, 0.4);
+    }
+
+    .result-error {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.92) 0%, rgba(249, 115, 22, 0.92) 100%);
+        color: white;
+        box-shadow: 0 15px 50px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Spoof Alert - Flashing Red Warning */
+    .result-spoof {
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.95) 0%, rgba(185, 28, 28, 0.95) 100%);
+        color: white;
+        box-shadow: 0 20px 60px rgba(220, 38, 38, 0.6);
+        animation: spoofFlash 0.5s ease-in-out infinite;
+        border: 3px solid #fca5a5;
+    }
+
+    @keyframes spoofFlash {
+        0%, 100% {
+            box-shadow: 0 20px 60px rgba(220, 38, 38, 0.6);
+            transform: scale(1);
+        }
+        50% {
+            box-shadow: 0 25px 80px rgba(220, 38, 38, 0.8), 0 0 40px rgba(239, 68, 68, 0.5);
+            transform: scale(1.02);
+        }
+    }
+
+    .result-spoof .spoof-icon {
+        animation: iconPulse 0.3s ease-in-out infinite;
+    }
+
+    @keyframes iconPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+    }
+
+    /* Liveness Failed Alert - Flashing Orange/Red Warning */
+    .result-liveness-failed {
+        background: linear-gradient(135deg, rgba(234, 88, 12, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+        color: white;
+        box-shadow: 0 20px 60px rgba(234, 88, 12, 0.6);
+        animation: livenessFlash 0.6s ease-in-out infinite;
+        border: 3px solid #fdba74;
+    }
+
+    @keyframes livenessFlash {
+        0%, 100% {
+            box-shadow: 0 20px 60px rgba(234, 88, 12, 0.6);
+            transform: scale(1);
+        }
+        50% {
+            box-shadow: 0 25px 80px rgba(234, 88, 12, 0.8), 0 0 40px rgba(249, 115, 22, 0.5);
+            transform: scale(1.02);
+        }
+    }
+
+    .result-liveness-failed .liveness-icon {
+        animation: iconPulse 0.3s ease-in-out infinite;
+    }
+
+    .result-warning {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.92) 0%, rgba(251, 191, 36, 0.92) 100%);
+        color: white;
+        box-shadow: 0 15px 50px rgba(245, 158, 11, 0.4);
+    }
+
+    .result-info {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.92) 0%, rgba(99, 102, 241, 0.92) 100%);
+        color: white;
+        box-shadow: 0 15px 50px rgba(59, 130, 246, 0.4);
+    }
+
+    .mode-toggle {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border-radius: 60px;
+        padding: 6px;
+        display: inline-flex;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .mode-btn {
+        padding: 14px 36px;
+        border-radius: 60px;
+        border: none;
+        font-weight: 600;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        font-size: 0.95rem;
+        letter-spacing: 0.5px;
+    }
+
+    .mode-btn.active {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+        color: white;
+        box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
+    }
+
+    .mode-btn:not(.active) {
+        background: transparent;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .mode-btn:not(.active):hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+
+    .capture-button {
+        padding: 1.1rem 3.5rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        border-radius: 60px;
+        background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+        color: #1e1b4b;
+        border: none;
+        box-shadow:
+            0 15px 50px rgba(0, 0, 0, 0.4),
+            0 0 0 1px rgba(255, 255, 255, 0.1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        letter-spacing: 0.5px;
+    }
+
+    .capture-button:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow:
+            0 20px 60px rgba(0, 0, 0, 0.5),
+            0 0 40px rgba(255, 255, 255, 0.1);
+    }
+
+    .capture-button:active {
+        transform: translateY(-2px) scale(1.01);
+    }
+
+    .info-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 24px;
+        color: white;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .info-card:hover {
+        border-color: rgba(99, 102, 241, 0.3);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+    }
+
+    .recent-list {
+        max-height: 280px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(99, 102, 241, 0.5) transparent;
+    }
+
+    .recent-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .recent-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .recent-list::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #6366f1, #a855f7);
+        border-radius: 10px;
+    }
+
+    .recent-item {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 16px 18px;
+        margin-bottom: 10px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid transparent;
+    }
+
+    .recent-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(99, 102, 241, 0.3);
+        transform: translateX(6px);
+    }
+
+    .recent-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .status-badge {
+        font-size: 0.68rem;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .processing-spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10;
+    }
+
+    .processing-spinner .spinner-border {
+        width: 80px;
+        height: 80px;
+        border-width: 3px;
+    }
+
+    .stat-box {
+        text-align: center;
+        padding: 1.25rem;
+    }
+
+    .stat-box h3 {
+        font-size: 2.25rem;
+        font-weight: 800;
+        margin: 0;
+        background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .stat-box small {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 600;
+    }
+
+    .admin-link {
+        color: rgba(255, 255, 255, 0.4);
+        text-decoration: none;
+        padding: 0.6rem 1.25rem;
+        border-radius: 50px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .admin-link:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        border-color: rgba(99, 102, 241, 0.5);
+        transform: translateY(-2px);
+    }
+
+    /* Logo and branding */
+    .brand-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    .brand-header i {
+        font-size: 2rem;
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.5));
+    }
+
+    .brand-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+    }
+
+    @media (max-width: 768px) {
+        .time-display {
+            font-size: 3.5rem;
+            letter-spacing: 3px;
+        }
+        .date-display {
+            font-size: 0.95rem;
+        }
+        .webcam-video {
+            max-height: 40vh;
+        }
+        .mode-btn {
+            padding: 12px 24px;
+            font-size: 0.9rem;
+        }
+        .capture-button {
+            padding: 1rem 2.5rem;
+            font-size: 1rem;
+        }
+        .info-card {
+            border-radius: 20px;
+        }
+        .stat-box h3 {
+            font-size: 1.75rem;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .time-display {
+            font-size: 2.75rem;
+        }
+        .brand-header h1 {
+            font-size: 1.25rem;
+        }
+        .brand-header i {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Background Effects -->
+<div class="bg-particles">
+    <div class="orb"></div>
+</div>
+<div class="grid-overlay"></div>
+
+<div class="attend-container d-flex align-items-center py-4 clock-in-mode" id="mainContainer">
+    <div class="container position-relative" style="z-index: 1;">
+        <div class="row g-4 align-items-center">
+            <!-- Main Webcam Section -->
+            <div class="col-lg-8">
+                <!-- Header -->
+                <div class="text-center text-white mb-4">
+                    <div class="brand-header mb-3">
+                        <i class="bi bi-person-badge-fill"></i>
+                        <h1>SmartFace Attendance</h1>
+                    </div>
+                    <div class="time-display" id="currentTime">--:--:--</div>
+                    <div class="date-display" id="currentDate">Loading...</div>
+
+                    <!-- Mode Toggle -->
+                    <div class="mt-4">
+                        <div class="mode-toggle">
+                            <button class="mode-btn active" id="clockInBtn" onclick="setMode('clock_in')">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>Clock In
+                            </button>
+                            <button class="mode-btn" id="clockOutBtn" onclick="setMode('clock_out')">
+                                <i class="bi bi-box-arrow-right me-2"></i>Clock Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Webcam Container -->
+                <div class="webcam-container" id="webcamContainer">
+                    <video id="webcam" class="webcam-video" autoplay playsinline></video>
+                    <div class="scan-overlay">
+                        <div class="scan-line" id="scanLine"></div>
+                    </div>
+                    <div class="face-guide" id="faceGuide"></div>
+
+                    <!-- Processing Spinner -->
+                    <div id="processingSpinner" class="processing-spinner" style="display: none;">
+                        <div class="spinner-border text-light" style="width: 70px; height: 70px; border-width: 4px;" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                    </div>
+
+                    <!-- Recognition Result -->
+                    <div id="recognitionResult" class="recognition-result" style="display: none;">
+                        <div class="d-flex align-items-center">
+                            <div id="resultIcon" class="me-4">
+                                <i class="bi fs-1"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h4 id="resultTitle" class="mb-1 fw-bold"></h4>
+                                <p id="resultMessage" class="mb-0"></p>
+                                <small id="resultDetails" class="opacity-75"></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Capture Button -->
+                <div class="text-center mt-4">
+                    <button id="manualCapture" class="capture-button">
+                        <i class="bi bi-camera-fill me-2"></i>
+                        <span id="captureButtonText">Capture & Clock In</span>
+                    </button>
+                    <p class="text-white-50 mt-3 small">
+                        <i class="bi bi-lightning-charge me-1"></i>Auto-recognition active
+                    </p>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Recent Activity -->
+                <div class="info-card mb-4">
+                    <div class="p-3 border-bottom border-secondary">
+                        <h5 class="mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-clock-history" style="color: #a855f7;"></i>
+                            Recent Activity
+                        </h5>
+                    </div>
+                    <div class="p-3 recent-list" id="recentList">
+                        {% if recent_attendances %}
+                            {% for att in recent_attendances %}
+                            <div class="recent-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-bold">{{ att.employee.full_name }}</div>
+                                        <small class="opacity-50">{{ att.employee.department }}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="small">
+                                            <i class="bi bi-box-arrow-in-right text-success me-1"></i>
+                                            {{ att.clock_in_time.strftime('%H:%M:%S') }}
+                                        </div>
+                                        {% if att.clock_out_time %}
+                                        <div class="small">
+                                            <i class="bi bi-box-arrow-right text-danger me-1"></i>
+                                            {{ att.clock_out_time.strftime('%H:%M:%S') }}
+                                        </div>
+                                        {% endif %}
+                                        {% if att.is_late %}
+                                        <span class="badge bg-warning text-dark status-badge">Late</span>
+                                        {% else %}
+                                        <span class="badge bg-success status-badge">On Time</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="text-center py-4 opacity-50">
+                            <i class="bi bi-inbox fs-1"></i>
+                            <p class="mt-2 mb-0 small">No activity yet today</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="info-card mb-4">
+                    <div class="p-3">
+                        <div class="row g-0">
+                            <div class="col-4 stat-box border-end border-secondary">
+                                <h3 id="todayCount">{{ total_today }}</h3>
+                                <small>Present</small>
+                            </div>
+                            <div class="col-4 stat-box border-end border-secondary">
+                                <h3 id="totalEmployees">{{ total_employees }}</h3>
+                                <small>Total</small>
+                            </div>
+                            <div class="col-4 stat-box">
+                                <h3 class="text-success" id="statusIndicator">
+                                    <i class="bi bi-circle-fill"></i>
+                                </h3>
+                                <small>Active</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if settings %}
+                <!-- Work Hours Info -->
+                <div class="info-card mb-4">
+                    <div class="p-3 d-flex align-items-center gap-2">
+                        <i class="bi bi-clock text-warning"></i>
+                        <span class="opacity-75">Work starts at {{ settings.work_start_time }}</span>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Admin Link -->
+                <div class="text-center">
+                    <a href="{{ url_for('login') }}" class="admin-link">
+                        <i class="bi bi-shield-lock me-1"></i>Admin Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<audio id="successSound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleR8NRY/M4J92MhNHi8HfnH45GUOF0PSeZjMVPY7U96lyPRxJj9HrkXdAG0OMxeCSfT0cRIzI5ZJ8Px5Ei8bkmX8+HkSMyeWZfj4eRI3J5Zl9Ph5FjMnlmX0+HkWMyeWZfT4fRYzJ5Zl9Ph9FjMnlmXw+H0WNyeWZfD4fRY3J5Zh8Px9Gjcnlln0/IEeNyeWVfUAfR47J5ZR8QCBHjsnlk3xAIEiOyeWTfEAhSI7J5ZJ8QSFIjsnlknxBIUiOyeWRfEEhSY7J5ZF7QSFJjsnlkHtBIkmPyeWQe0EiSY/J5Y96QiJJj8nlj3pCIkmPyuWPekIjSpDJ5Y56QyNKkMnljnpDI0qQyeWOekMjSpHJ5Y15RCNKkcnljXlEJEqRyeWMeUQkS5HJ5Yx5RCRLkcnli3lFJEuRyuWLeUUlS5LJ5Yt5RSVLksrlinlFJUySyuWKeUYlTJLK5Yp5RiZMksrlinhGJkySyuWKeEcmTZPK5Yl4RydNk8rliHhHJ02TyuWIeEcnTZPK5Yd4SCdOk8vlh3hIKE6UyuWHeEgoTpTK5YZ3SChOlMrlhndIKE+UyuWGd0kpT5TK5YV3SSlPlcrlhXdJKU+VyuWFd0kqUJXK5YR3SipQlcrlhHZKKlCVyuWEdkopUJbK5YR2SilQlsrlg3ZKKVCWyuWDdksqUZbK5YN2SypRlsrlg3VLKlGWyuWCdUsqUZfK5YJ1SytSl8rlgnVMK1KXyuWCdUwrUpfK5YF1TCtTl8rlgXRMK1OXyuWBdE0sU5jK5YF0TSxTmMrlgHRNLFOYyuWAdE0sVJjK5YB0TixUmMrlf3ROLFSY2uV/dE4sVJja5X90TyxVmNrlf3NPLFaY2uV+c08tVpna5X5zTy1Wmdrlf3NPLVeZ2uV+c1AtV5na5X5zUC1XmdvlfnNQLVia2+V+clAtWJrb5X5yUS5Ymtvlf3JRLlia2+V+clEuWZvb5X5yUS5Zm9vlfnJSL1mb2+V+clIvWpvb5X5xUi9anNvlf3FSL1qc2+V+cVMwW5zb5X5xUzBbnNzlfnBTMFuc3OV/cFMwXJzc5X5wVDBcnNzlfnBUMVyc3OV+cFQxXZ3c5X5wVDFdndzlfnBVMV2d3OV+b1UxXp3c5X9vVTFend3lf29WMl6d3eV+b1YyX53d5X5uVjJfnt3lfm5WMl+e3eV+blczYJ7d5X5uVzNgnt7lfW5XM2Ce3uV+blgzYZ7e5X5tWDRhnt7lfW1YNGGf3uV9bVg0Yp/e5X1tWTRin97lfWxZNGKf3uV9bFk1Y5/e5X1sWjVjn9/lfWxaNWOf3+V9bFo1Y5/f5X1rWzZkoN/lfWtbNmSg3+V9a1s2ZKDf5X1rXDdloN/lfWtcN2Wg4OV8a1w3ZaDg5X1rXDdmoODlfGxdN2ag4OV8bF04ZqHg5XxsXThmoeHlfGxdOGeh4eV8bF44Z6Hh5XxsXjhnoeHlfGxfOWii4eV7bF85aKLh5XxsXzlooeLle2xfOWmi4uV7bGA5aaLi5XtsYDppouLle2xgOmqi4uV7bGE6aqPj5XtsYTpro+PlemxhOmuj4+V6bGI7a6Pj5XpsYjtro+TlemxiO2yk5OV6bWM7bKTk5XptYzxspOTleW1jPGyl5eV5bWQ8bKXl5XltZDxtpuXleG1lPG2m5uV4bmU8bafl5XhvZj1up+bld3BmPW6n5+V3cWY9b6fn5Xdxhz1vqOfld3OHPnCp5+V2dIc+cKno5XZ1iD5xqujldXaIPnKq6eV1d4g/cqrp5XV4iT9zq+rlc3mJP3Or6+VzeYpAdKzr5XN6ikB0revlcnqKQHSt7OVye4tBdK3s5XJ7i0F1ruzlcXyLQXWv7eVxfItCdq/t5XB9jEJ2r+7lcH2MQnew7uVvfoxDd7Dv5W9+jEN3sPDlb36NQ3iw8OVufY5EeLDx5W59jkR5sfHlbn2ORHmx8uVtfo5FerLy5W1+j0V6svPla36PRXuz8+Vrfo9Ge7P05Wt/kEZ8tPTla3+QRny09eVqf5FHfLX15Wp/kUd9tfblanyRSH229uVqfJFIfbb35Wl9kkl9t/flanySSn24" type="audio/wav">
+</audio>
+<audio id="alertSound" preload="auto">
+    <source src="data:audio/wav;base64,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" type="audio/wav">
+</audio>
+<canvas id="canvas" style="display: none;"></canvas>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const webcam = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const manualCapture = document.getElementById('manualCapture');
+    const processingSpinner = document.getElementById('processingSpinner');
+    const recognitionResult = document.getElementById('recognitionResult');
+    const resultIcon = document.getElementById('resultIcon');
+    const resultTitle = document.getElementById('resultTitle');
+    const resultMessage = document.getElementById('resultMessage');
+    const resultDetails = document.getElementById('resultDetails');
+    const recentList = document.getElementById('recentList');
+    const successSound = document.getElementById('successSound');
+    const alertSound = document.getElementById('alertSound');
+    const todayCount = document.getElementById('todayCount');
+    const faceGuide = document.getElementById('faceGuide');
+    const scanLine = document.getElementById('scanLine');
+    const mainContainer = document.getElementById('mainContainer');
+    const captureButtonText = document.getElementById('captureButtonText');
+
+    let stream = null;
+    let isProcessing = false;
+    let autoRecognizeInterval = null;
+    let currentMode = 'clock_in';
+    let sessionId = generateSessionId();
+    let livenessCollecting = false;
+    let livenessProgress = 0;
+
+    // Generate unique session ID for liveness tracking
+    function generateSessionId() {
+        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Reset session when starting fresh
+    function resetSession() {
+        sessionId = generateSessionId();
+        livenessCollecting = false;
+        livenessProgress = 0;
+    }
+
+    window.setMode = function(mode) {
+        currentMode = mode;
+        document.getElementById('clockInBtn').classList.toggle('active', mode === 'clock_in');
+        document.getElementById('clockOutBtn').classList.toggle('active', mode === 'clock_out');
+        mainContainer.classList.toggle('clock-in-mode', mode === 'clock_in');
+        mainContainer.classList.toggle('clock-out-mode', mode === 'clock_out');
+        scanLine.classList.toggle('clock-out', mode === 'clock_out');
+        captureButtonText.textContent = mode === 'clock_in' ? 'Capture & Clock In' : 'Capture & Clock Out';
+    };
+
+    setMode('clock_in');
+
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+        document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    async function initWebcam() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                }
+            });
+            webcam.srcObject = stream;
+            webcam.onloadedmetadata = () => {
+                startAutoRecognize();
+            };
+        } catch (err) {
+            console.error('Error accessing webcam:', err);
+            showResult('error', 'Camera Error', 'Unable to access camera. Please check permissions.');
+        }
+    }
+
+    function startAutoRecognize() {
+        // Use dynamic scheduling instead of fixed interval
+        // This ensures we wait for each request to complete before starting the next
+        scheduleNextRecognition();
+    }
+
+    function scheduleNextRecognition() {
+        // Use faster interval during liveness collection for better detection
+        const interval = livenessCollecting ? 800 : 2000;
+        autoRecognizeInterval = setTimeout(async () => {
+            if (!isProcessing) {
+                await captureAndRecognize();
+            }
+            // Schedule next capture after this one completes
+            scheduleNextRecognition();
+        }, interval);
+    }
+
+    async function captureAndRecognize() {
+        if (isProcessing) return;
+
+        isProcessing = true;
+        processingSpinner.style.display = 'block';
+
+        try {
+            // Use smaller resolution for faster processing (640x480)
+            const targetWidth = 640;
+            const targetHeight = 480;
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.save();
+            ctx.scale(-1, 1);
+            // Scale the webcam image to smaller size
+            ctx.drawImage(webcam, -targetWidth, 0, targetWidth, targetHeight);
+            ctx.restore();
+
+            // Use lower quality for faster upload (0.8 instead of 0.9)
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+            // Add timeout to prevent hanging requests (15 seconds max)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            const response = await fetch('/api/recognize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image: imageData,
+                    action: currentMode,
+                    session_id: sessionId
+                }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+            const result = await response.json();
+
+            if (result.success) {
+                // Success - reset session for next user
+                resetSession();
+                if (result.already_marked) {
+                    showResult('warning', result.employee_name, result.message,
+                        result.clock_out_time ? `Clocked out at ${result.clock_out_time}` : 'Not yet clocked out');
+                } else if (result.already_clocked_out) {
+                    showResult('warning', result.employee_name, result.message);
+                } else if (result.clocked_out) {
+                    showResult('info', result.employee_name, result.message,
+                        `Worked from ${result.clock_in_time} to ${result.clock_out_time}`);
+                    playSuccessSound();
+                    refreshRecentList();
+                } else {
+                    const lateText = result.is_late ? ' (Late)' : ' (On Time)';
+                    showResult('success', result.employee_name,
+                        `Clocked in at ${result.clock_in_time}${lateText}`,
+                        `Match confidence: ${result.similarity}%`);
+                    playSuccessSound();
+                    refreshRecentList();
+                }
+            } else {
+                if (result.liveness_collecting) {
+                    // Liveness check in progress - show progress and continue collecting frames
+                    livenessCollecting = true;
+                    showResult('info', 'Liveness Check',
+                        result.message,
+                        'Keep looking at the camera and blink naturally');
+                    // Don't reset session - continue collecting frames
+                } else if (result.liveness_failed) {
+                    // Liveness check failed - PHOTO DETECTED! Show prominent alert
+                    resetSession();
+                    livenessCollecting = false;
+                    showLivenessFailedAlert();
+                } else if (result.spoof_detected) {
+                    resetSession();
+                    playAlertSound();
+                    showSpoofAlert();
+                } else if (result.db_error) {
+                    showResult('error', 'Save Failed',
+                        result.message || 'Failed to save attendance.',
+                        'Will retry automatically...');
+                } else if (result.error) {
+                    showResult('error', 'Recognition Error',
+                        result.message || 'Recognition failed.',
+                        'Please try again');
+                } else if (result.not_clocked_in) {
+                    showResult('warning', 'Not Clocked In',
+                        result.message,
+                        'Please clock in first before clocking out');
+                } else if (result.no_match) {
+                    // No face/match - reset session for clean start
+                    if (!livenessCollecting) {
+                        resetSession();
+                    }
+                    hideResult();
+                }
+            }
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                console.warn('Recognition request timed out');
+                resetSession();
+                showResult('error', 'Timeout', 'Recognition took too long. Retrying...', 'Please keep your face in frame');
+            } else {
+                console.error('Recognition error:', err);
+            }
+        } finally {
+            isProcessing = false;
+            processingSpinner.style.display = 'none';
+        }
+    }
+
+    function showResult(type, title, message, details = '') {
+        recognitionResult.style.display = 'block';
+        recognitionResult.className = `recognition-result result-${type}`;
+
+        let iconClass = '';
+        if (type === 'success') iconClass = 'bi-check-circle-fill';
+        else if (type === 'error') iconClass = 'bi-x-circle-fill';
+        else if (type === 'warning') iconClass = 'bi-exclamation-circle-fill';
+        else if (type === 'info') iconClass = 'bi-info-circle-fill';
+
+        resultIcon.innerHTML = `<i class="bi ${iconClass} fs-1"></i>`;
+        resultTitle.textContent = title;
+        resultMessage.textContent = message;
+        resultDetails.textContent = details;
+
+        setTimeout(hideResult, 5000);
+    }
+
+    function hideResult() {
+        recognitionResult.style.display = 'none';
+    }
+
+    function playSuccessSound() {
+        try {
+            successSound.currentTime = 0;
+            successSound.play();
+        } catch (e) {
+            console.log('Could not play sound');
+        }
+    }
+
+    function playAlertSound() {
+        try {
+            alertSound.currentTime = 0;
+            alertSound.play();
+            // Play alert sound 3 times for emphasis
+            setTimeout(() => {
+                alertSound.currentTime = 0;
+                alertSound.play();
+            }, 500);
+            setTimeout(() => {
+                alertSound.currentTime = 0;
+                alertSound.play();
+            }, 1000);
+        } catch (e) {
+            console.log('Could not play alert sound');
+        }
+    }
+
+    function showSpoofAlert() {
+        recognitionResult.style.display = 'block';
+        recognitionResult.className = 'recognition-result result-spoof';
+
+        resultIcon.innerHTML = '<i class="bi bi-exclamation-triangle-fill fs-1 spoof-icon"></i>';
+        resultTitle.textContent = 'SPOOFING DETECTED!';
+        resultMessage.textContent = 'Photo or video from phone detected!';
+        resultDetails.textContent = 'Only real faces are allowed. Please look directly at the camera.';
+
+        // Keep the spoof alert visible longer (8 seconds)
+        setTimeout(hideResult, 8000);
+    }
+
+    function showLivenessFailedAlert() {
+        recognitionResult.style.display = 'block';
+        recognitionResult.className = 'recognition-result result-liveness-failed';
+
+        resultIcon.innerHTML = '<i class="bi bi-phone-fill fs-1 liveness-icon"></i>';
+        resultTitle.textContent = 'PHOTO DETECTED!';
+        resultMessage.textContent = 'Static image detected - no movement!';
+        resultDetails.textContent = 'Real faces have natural movement. Photos from phones are not allowed.';
+
+        // Play alert sound
+        playAlertSound();
+
+        // Keep the alert visible longer (8 seconds)
+        setTimeout(hideResult, 8000);
+    }
+
+    async function refreshRecentList() {
+        try {
+            const response = await fetch('/api/recent-attendances');
+            const data = await response.json();
+
+            todayCount.textContent = data.total_today;
+
+            if (data.attendances && data.attendances.length > 0) {
+                let html = '';
+                data.attendances.forEach(att => {
+                    const badgeClass = att.is_late ? 'bg-warning text-dark' : 'bg-success';
+                    const statusText = att.is_late ? 'Late' : 'On Time';
+                    html += `
+                        <div class="recent-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold">${att.employee_name}</div>
+                                    <small class="opacity-50">${att.department}</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="small">
+                                        <i class="bi bi-box-arrow-in-right text-success me-1"></i>
+                                        ${att.clock_in_time}
+                                    </div>
+                                    ${att.clock_out_time ? `
+                                    <div class="small">
+                                        <i class="bi bi-box-arrow-right text-danger me-1"></i>
+                                        ${att.clock_out_time}
+                                    </div>
+                                    ` : ''}
+                                    <span class="badge ${badgeClass} status-badge">${statusText}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                recentList.innerHTML = html;
+            }
+        } catch (e) {
+            console.error('Error refreshing list:', e);
+        }
+    }
+
+    manualCapture.addEventListener('click', function() {
+        if (!isProcessing) {
+            captureAndRecognize();
+        }
+    });
+
+    initWebcam();
+    setInterval(refreshRecentList, 10000);
+});
+</script>
+{% endblock %}

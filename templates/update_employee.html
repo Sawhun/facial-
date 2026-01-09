@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Employee - SmartFace Attendance Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .current-photo {
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        border: 4px solid rgba(99, 102, 241, 0.3);
+        object-fit: cover;
+        transition: all 0.3s ease;
+    }
+
+    .current-photo:hover {
+        transform: scale(1.05);
+        border-color: var(--primary);
+        box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+    }
+
+    .webcam-container {
+        position: relative;
+        border-radius: 16px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+    }
+
+    .webcam-video {
+        width: 100%;
+        max-height: 280px;
+        object-fit: cover;
+        display: block;
+    }
+
+    .upload-zone {
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .upload-zone:hover {
+        border-color: var(--primary);
+        background: rgba(99, 102, 241, 0.05);
+    }
+
+    .preview-container {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 3px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .divider {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin: 1.5rem 0;
+    }
+
+    .divider::before,
+    .divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border-color);
+    }
+
+    .divider span {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb & Header -->
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('employees') }}" class="text-decoration-none">
+                    <i class="bi bi-people me-1"></i>Employees
+                </a>
+            </li>
+            <li class="breadcrumb-item active">Edit {{ employee.full_name }}</li>
+        </ol>
+    </nav>
+    <div class="page-title">
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-pencil-square"></i>
+            Edit Employee
+        </h2>
+        <p class="text-muted mb-0">Update employee information and face data</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Face Photo Section -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <i class="bi bi-camera-video text-gradient"></i>
+                    Update Face Photo
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Current Photo -->
+                <div class="text-center mb-4">
+                    <p class="text-muted small mb-2">Current Photo</p>
+                    <img src="{{ url_for('get_employee_image', id=employee.id) }}"
+                         class="current-photo"
+                         id="currentPhoto"
+                         onerror="this.onerror=null; this.outerHTML='<div class=\'avatar-placeholder\' style=\'width: 140px; height: 140px; font-size: 3rem;\'>{{ employee.full_name[0] }}</div>'">
+                </div>
+
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Leave empty to keep current photo, or capture/upload new one to update.
+                </div>
+
+                <!-- Webcam Container -->
+                <div class="webcam-container mb-3">
+                    <video id="webcam" autoplay playsinline class="webcam-video" style="display: none;"></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div id="webcamPlaceholder" class="d-flex align-items-center justify-content-center text-white" style="height: 200px;">
+                        <div class="text-center">
+                            <i class="bi bi-camera-video fs-1 mb-2"></i>
+                            <p class="mb-0 small">Click "Start Camera" to capture new photo</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Camera Buttons -->
+                <div class="d-flex gap-2 mb-3">
+                    <button type="button" id="startCameraBtn" class="btn btn-outline-primary flex-grow-1">
+                        <i class="bi bi-camera-video me-2"></i>Start Camera
+                    </button>
+                    <button type="button" id="captureBtn" class="btn btn-primary flex-grow-1" style="display: none;">
+                        <i class="bi bi-camera me-2"></i>Capture
+                    </button>
+                    <button type="button" id="retakeBtn" class="btn btn-outline-secondary" style="display: none;">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Retake
+                    </button>
+                </div>
+
+                <!-- Divider -->
+                <div class="divider">
+                    <span>or upload</span>
+                </div>
+
+                <!-- Upload Zone -->
+                <label for="uploadImage" class="upload-zone d-block mb-3">
+                    <i class="bi bi-cloud-arrow-up fs-2 text-muted mb-2 d-block"></i>
+                    <span class="text-muted">Click to upload or drag & drop</span>
+                    <input type="file" class="d-none" id="uploadImage" accept="image/*">
+                </label>
+
+                <!-- Preview -->
+                <div id="capturedPreview" style="display: none;">
+                    <label class="form-label fw-semibold">New Photo Preview</label>
+                    <div class="preview-container">
+                        <img id="previewImage" class="w-100" style="max-height: 180px; object-fit: cover;">
+                    </div>
+                    <div id="qualityFeedback" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Information Section -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <i class="bi bi-person-vcard text-gradient"></i>
+                    Employee Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="updateForm" method="POST" action="{{ url_for('update_employee', id=employee.id) }}">
+                    <input type="hidden" id="imageData" name="image_data">
+
+                    <!-- Employee ID (Read Only) -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-hash me-1"></i>Employee ID
+                        </label>
+                        <input type="text" class="form-control form-control-lg" value="{{ employee.employee_id }}" disabled>
+                        <div class="form-text">Employee ID cannot be changed</div>
+                    </div>
+
+                    <!-- Full Name -->
+                    <div class="mb-3">
+                        <label for="fullName" class="form-label fw-semibold">
+                            <i class="bi bi-person me-1"></i>Full Name
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control form-control-lg" id="fullName" name="full_name"
+                               value="{{ employee.full_name }}" required>
+                    </div>
+
+                    <!-- Department -->
+                    <div class="mb-4">
+                        <label for="department" class="form-label fw-semibold">
+                            <i class="bi bi-building me-1"></i>Department
+                            <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select form-select-lg" id="department" name="department" required>
+                            {% for dept in departments %}
+                            <option value="{{ dept }}" {{ 'selected' if employee.department == dept else '' }}>{{ dept }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Registration Info -->
+                    <div class="mb-4 p-3 rounded-3" style="background: var(--bg-tertiary);">
+                        <div class="d-flex align-items-center gap-2 text-muted">
+                            <i class="bi bi-clock"></i>
+                            <span>Registered: {{ employee.registered_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" id="submitBtn" class="btn btn-success btn-lg flex-grow-1">
+                            <span id="submitText">
+                                <i class="bi bi-check-circle me-2"></i>Save Changes
+                            </span>
+                            <span id="submitSpinner" style="display: none;">
+                                <span class="spinner-border spinner-border-sm me-2"></span>Saving...
+                            </span>
+                        </button>
+                        <a href="{{ url_for('employees') }}" class="btn btn-outline-secondary btn-lg">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const webcam = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const webcamPlaceholder = document.getElementById('webcamPlaceholder');
+    const startCameraBtn = document.getElementById('startCameraBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
+    const uploadImage = document.getElementById('uploadImage');
+    const imageData = document.getElementById('imageData');
+    const previewImage = document.getElementById('previewImage');
+    const capturedPreview = document.getElementById('capturedPreview');
+    const qualityFeedback = document.getElementById('qualityFeedback');
+    const updateForm = document.getElementById('updateForm');
+    const submitText = document.getElementById('submitText');
+    const submitSpinner = document.getElementById('submitSpinner');
+
+    let stream = null;
+
+    startCameraBtn.addEventListener('click', async function() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                }
+            });
+            webcam.srcObject = stream;
+            webcam.style.display = 'block';
+            webcamPlaceholder.style.display = 'none';
+            startCameraBtn.style.display = 'none';
+            captureBtn.style.display = 'block';
+        } catch (err) {
+            console.error('Error accessing webcam:', err);
+            alert('Could not access camera. Please try uploading an image instead.');
+        }
+    });
+
+    captureBtn.addEventListener('click', function() {
+        canvas.width = webcam.videoWidth;
+        canvas.height = webcam.videoHeight;
+        canvas.getContext('2d').drawImage(webcam, 0, 0);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        imageData.value = dataUrl;
+        previewImage.src = dataUrl;
+        capturedPreview.style.display = 'block';
+
+        captureBtn.style.display = 'none';
+        retakeBtn.style.display = 'block';
+
+        validateFace(dataUrl);
+    });
+
+    retakeBtn.addEventListener('click', function() {
+        imageData.value = '';
+        capturedPreview.style.display = 'none';
+        qualityFeedback.innerHTML = '';
+        captureBtn.style.display = 'block';
+        retakeBtn.style.display = 'none';
+    });
+
+    uploadImage.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                imageData.value = event.target.result;
+                previewImage.src = event.target.result;
+                capturedPreview.style.display = 'block';
+                validateFace(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    async function validateFace(imageDataUrl) {
+        qualityFeedback.innerHTML = `
+            <div class="d-flex align-items-center gap-2 text-muted">
+                <span class="spinner-border spinner-border-sm"></span>
+                <span>Validating face quality...</span>
+            </div>
+        `;
+
+        try {
+            const response = await fetch('/api/validate-face', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageDataUrl })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                if (result.valid) {
+                    qualityFeedback.innerHTML = `
+                        <div class="alert alert-success mb-0">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Face detected successfully!
+                        </div>
+                    `;
+                } else {
+                    let issuesHtml = result.issues.map(i => `<li>${i}</li>`).join('');
+                    qualityFeedback.innerHTML = `
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Quality issues:
+                            <ul class="mb-0 mt-2 small">${issuesHtml}</ul>
+                        </div>
+                    `;
+                }
+            }
+        } catch (e) {
+            qualityFeedback.innerHTML = `
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    Could not validate face quality
+                </div>
+            `;
+        }
+    }
+
+    updateForm.addEventListener('submit', function() {
+        submitText.style.display = 'none';
+        submitSpinner.style.display = 'inline';
+    });
+});
+</script>
+{% endblock %}

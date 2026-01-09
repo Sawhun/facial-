@@ -1,0 +1,28 @@
+# SmartFace Attendance Pro - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Web Framework
+flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+flask-login>=0.6.3
+flask-cors>=4.0.0
+
+# Security
+bcrypt>=4.1.0
+werkzeug>=3.0.0
+
+# Image Processing
+opencv-python>=4.8.0
+pillow>=10.0.0
+numpy>=1.24.0
+
+# Face Recognition (DeepFace with dependencies)
+deepface>=0.0.89
+tensorflow>=2.15.0
+tf-keras>=2.15.0
+
+# Optional: For production deployment
+gunicorn>=21.0.0
+
+# Database (SQLite is built-in, but you can use PostgreSQL)
+# psycopg2-binary>=2.9.0  # Uncomment for PostgreSQL support

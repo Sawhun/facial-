@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-ChildItem -Path . -Recurse -Depth 3 -Exclude venv -Force | Where-Object { !\\($_FullName -match ''\\\\venv\\\\''\\) } | Select-Object FullName | Format-List\")",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(sqlite3:*)",
+      "Bash(python app.py:*)",
+      "Bash(timeout:*)",
+      "WebSearch",
+      "Bash(python -m py_compile:*)",
+      "Bash(find:*)",
+      "Bash(python -m flake8:*)",
+      "Bash(python -m ruff check:*)",
+      "Bash(python -m pylint:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(pip install:*)",
+      "Bash(ruff check:*)",
+      "Bash(python:*)"
+    ]
+  }
+}

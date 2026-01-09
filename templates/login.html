@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}Login - SmartFace Attendance Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #0a0a1a 0%, #0f0f23 25%, #1e1b4b 50%, #312e81 75%, #1e1b4b 100%);
+        background-size: 400% 400%;
+        animation: gradientFlow 15s ease infinite;
+        min-height: 100vh;
+    }
+
+    @keyframes gradientFlow {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        position: relative;
+    }
+
+    .login-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        border-radius: 28px;
+        box-shadow:
+            0 32px 64px rgba(0, 0, 0, 0.4),
+            0 0 80px rgba(99, 102, 241, 0.1);
+        overflow: hidden;
+        max-width: 440px;
+        width: 100%;
+    }
+
+    [data-bs-theme="dark"] .login-card {
+        background: rgba(18, 18, 42, 0.9);
+        border-color: rgba(99, 102, 241, 0.25);
+    }
+
+    .login-header {
+        text-align: center;
+        padding: 3rem 2rem 2rem;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 50%);
+        animation: shimmerBg 10s ease-in-out infinite;
+    }
+
+    @keyframes shimmerBg {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        50% { transform: translate(-10%, 10%) rotate(180deg); }
+    }
+
+    .login-icon {
+        width: 100px;
+        height: 100px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.25rem;
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        animation: float 4s ease-in-out infinite;
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-icon::before {
+        content: '';
+        position: absolute;
+        inset: -8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        animation: pulse-ring 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-ring {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.2; }
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-8px) rotate(2deg); }
+        75% { transform: translateY(4px) rotate(-2deg); }
+    }
+
+    .login-icon i {
+        font-size: 2.75rem;
+        color: white;
+        filter: drop-shadow(0 2px 8px rgba(0,0,0,0.2));
+    }
+
+    .login-header h3 {
+        color: white;
+        font-weight: 800;
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+        position: relative;
+        z-index: 1;
+        letter-spacing: -0.02em;
+    }
+
+    .login-header p {
+        color: rgba(255, 255, 255, 0.85);
+        margin: 0;
+        font-weight: 500;
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-body {
+        padding: 2.5rem 2rem 2rem;
+    }
+
+    .form-floating {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-floating > .form-control {
+        padding: 1rem 1.25rem;
+        height: calc(3.75rem + 2px);
+        border-radius: 14px;
+        border: 2px solid rgba(148, 163, 184, 0.25);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+
+    .form-floating > .form-control:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+    }
+
+    .form-floating > label {
+        padding: 1rem 1.25rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    [data-bs-theme="dark"] .form-floating > .form-control {
+        background: rgba(30, 27, 75, 0.6);
+        border-color: rgba(99, 102, 241, 0.25);
+        color: #f1f5f9;
+    }
+
+    [data-bs-theme="dark"] .form-floating > .form-control:focus {
+        background: rgba(30, 27, 75, 0.8);
+    }
+
+    [data-bs-theme="dark"] .form-floating > label {
+        color: #94a3b8;
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 5;
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        padding: 0.5rem;
+        transition: all 0.3s ease;
+        border-radius: 8px;
+    }
+
+    .password-toggle:hover {
+        color: #6366f1;
+        background: rgba(99, 102, 241, 0.1);
+    }
+
+    .login-btn {
+        width: 100%;
+        padding: 1.1rem;
+        font-size: 1.05rem;
+        font-weight: 700;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+        border: none;
+        color: white;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        letter-spacing: 0.5px;
+    }
+
+    .login-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+        transition: left 0.6s ease;
+    }
+
+    .login-btn:hover::before {
+        left: 100%;
+    }
+
+    .login-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 40px rgba(99, 102, 241, 0.5);
+    }
+
+    .login-btn:active {
+        transform: translateY(-1px);
+    }
+
+    .login-footer {
+        text-align: center;
+        padding: 1.75rem 2rem 2.25rem;
+        border-top: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    [data-bs-theme="dark"] .login-footer {
+        border-color: rgba(99, 102, 241, 0.15);
+    }
+
+    .cam-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        color: #6366f1;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        padding: 0.75rem 1.25rem;
+        border-radius: 12px;
+        background: rgba(99, 102, 241, 0.08);
+    }
+
+    .cam-link:hover {
+        color: #a855f7;
+        background: rgba(99, 102, 241, 0.15);
+        transform: translateX(4px);
+    }
+
+    .cam-link i:last-child {
+        transition: transform 0.3s ease;
+    }
+
+    .cam-link:hover i:last-child {
+        transform: translateX(4px);
+    }
+
+    .copyright {
+        margin-top: 2.5rem;
+        text-align: center;
+    }
+
+    .copyright span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.6rem 1.5rem;
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(10px);
+        border-radius: 50px;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.85rem;
+        font-weight: 500;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .copyright span i {
+        color: #a855f7;
+    }
+
+    /* Premium animated background */
+    .particles {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: -1;
+    }
+
+    .particle {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: linear-gradient(135deg, #6366f1, #a855f7);
+        border-radius: 50%;
+        animation: rise 12s infinite;
+        opacity: 0;
+    }
+
+    .particle:nth-child(odd) {
+        background: linear-gradient(135deg, #22d3ee, #10b981);
+    }
+
+    @keyframes rise {
+        0% {
+            opacity: 0;
+            transform: translateY(100vh) scale(0);
+        }
+        15% {
+            opacity: 0.8;
+        }
+        85% {
+            opacity: 0.8;
+        }
+        100% {
+            opacity: 0;
+            transform: translateY(-10vh) scale(1);
+        }
+    }
+
+    /* Floating orbs */
+    .orb {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(60px);
+        opacity: 0.15;
+        pointer-events: none;
+        z-index: -1;
+    }
+
+    .orb-1 {
+        width: 500px;
+        height: 500px;
+        background: linear-gradient(135deg, #6366f1, #a855f7);
+        top: -200px;
+        right: -200px;
+        animation: float-orb 20s ease-in-out infinite;
+    }
+
+    .orb-2 {
+        width: 400px;
+        height: 400px;
+        background: linear-gradient(135deg, #10b981, #22d3ee);
+        bottom: -150px;
+        left: -150px;
+        animation: float-orb 25s ease-in-out infinite reverse;
+    }
+
+    @keyframes float-orb {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(30px, -30px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.95); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Floating Orbs -->
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<!-- Animated Background Particles -->
+<div class="particles">
+    <div class="particle" style="left: 5%; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 15%; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 25%; animation-delay: 4s;"></div>
+    <div class="particle" style="left: 35%; animation-delay: 1s;"></div>
+    <div class="particle" style="left: 45%; animation-delay: 3s;"></div>
+    <div class="particle" style="left: 55%; animation-delay: 5s;"></div>
+    <div class="particle" style="left: 65%; animation-delay: 2.5s;"></div>
+    <div class="particle" style="left: 75%; animation-delay: 1.5s;"></div>
+    <div class="particle" style="left: 85%; animation-delay: 3.5s;"></div>
+    <div class="particle" style="left: 95%; animation-delay: 4.5s;"></div>
+</div>
+
+<div class="login-container">
+    <div class="w-100" style="max-width: 420px;">
+        <div class="login-card animate-fadeInUp">
+            <!-- Header -->
+            <div class="login-header">
+                <div class="login-icon">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </div>
+                <h3>Welcome Back</h3>
+                <p>Sign in to access your dashboard</p>
+            </div>
+
+            <!-- Login Form -->
+            <div class="login-body">
+                <form method="POST" action="{{ url_for('login') }}">
+                    <!-- Username Field -->
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="username" name="username" placeholder="Username" required autofocus>
+                        <label for="username">
+                            <i class="bi bi-person me-2"></i>Username
+                        </label>
+                    </div>
+
+                    <!-- Password Field -->
+                    <div class="form-floating mb-4 position-relative">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                        <label for="password">
+                            <i class="bi bi-lock me-2"></i>Password
+                        </label>
+                        <button type="button" class="password-toggle" id="togglePassword">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="login-btn">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>
+                        Sign In
+                    </button>
+                </form>
+            </div>
+
+            <!-- Footer -->
+            <div class="login-footer">
+                <a href="{{ url_for('attend') }}" class="cam-link">
+                    <i class="bi bi-camera-video"></i>
+                    Go to Attendance Camera
+                    <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Copyright -->
+        <div class="copyright">
+            <span>
+                <i class="bi bi-person-badge-fill"></i>
+                SmartFace Pro &copy; 2025
+            </span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const password = document.getElementById('password');
+    const icon = this.querySelector('i');
+
+    if (password.type === 'password') {
+        password.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        password.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+});
+
+// Add slight parallax effect to particles
+document.addEventListener('mousemove', (e) => {
+    const particles = document.querySelectorAll('.particle');
+    const x = e.clientX / window.innerWidth;
+    const y = e.clientY / window.innerHeight;
+
+    particles.forEach((particle, i) => {
+        const speed = (i + 1) * 0.5;
+        particle.style.transform = `translate(${x * speed * 20}px, ${y * speed * 20}px)`;
+    });
+});
+</script>
+{% endblock %}
