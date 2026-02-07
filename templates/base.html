@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SmartFace Attendance Pro - Modern Facial Recognition Attendance System">
-    <title>{% block title %}SmartFace Attendance Pro{% endblock %}</title>
+    <meta name="description" content="MediCare Attendance - Secure Biometric-Based Employee Attendance System for Healthcare Institutions in Kathmandu Valley">
+    <title>{% block title %}MediCare Attendance System{% endblock %}</title>
 
     <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,9 +28,9 @@
         <div class="container">
             <!-- Brand Logo -->
             <a class="navbar-brand" href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('attend') }}">
-                <i class="bi bi-person-badge-fill"></i>
-                <span>SmartFace</span>
-                <span class="d-none d-sm-inline text-gradient">Pro</span>
+                <i class="bi bi-hospital-fill"></i>
+                <span>MediCare</span>
+                <span class="d-none d-sm-inline text-gradient">Attendance</span>
             </a>
 
             <!-- Mobile Toggle -->
@@ -161,11 +161,11 @@
         <div class="container">
             <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-person-badge-fill text-gradient"></i>
-                    <span class="text-muted">SmartFace Attendance Pro</span>
+                    <i class="bi bi-hospital-fill text-gradient"></i>
+                    <span class="text-muted">MediCare Attendance System</span>
                 </div>
                 <div class="text-muted small">
-                    &copy; Sahan Bhasima Final Year Thesis Project
+                    &copy; Healthcare Institutions - Kathmandu Valley | Final Year Thesis Project
                 </div>
             </div>
         </div>

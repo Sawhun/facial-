@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Login - SmartFace Attendance Pro{% endblock %}
+{% block title %}Login - MediCare Attendance System{% endblock %}
 
 {% block extra_css %}
 <style>
     body {
-        background: linear-gradient(135deg, #0a0a1a 0%, #0f0f23 25%, #1e1b4b 50%, #312e81 75%, #1e1b4b 100%);
+        background: linear-gradient(135deg, #0a1419 0%, #0f1a1e 25%, #164e63 50%, #155e75 75%, #164e63 100%);
         background-size: 400% 400%;
         animation: gradientFlow 15s ease infinite;
         min-height: 100vh;
@@ -33,21 +33,21 @@
         border-radius: 28px;
         box-shadow:
             0 32px 64px rgba(0, 0, 0, 0.4),
-            0 0 80px rgba(99, 102, 241, 0.1);
+            0 0 80px rgba(8, 145, 178, 0.1);
         overflow: hidden;
         max-width: 440px;
         width: 100%;
     }
 
     [data-bs-theme="dark"] .login-card {
-        background: rgba(18, 18, 42, 0.9);
-        border-color: rgba(99, 102, 241, 0.25);
+        background: rgba(15, 26, 30, 0.9);
+        border-color: rgba(8, 145, 178, 0.25);
     }
 
     .login-header {
         text-align: center;
         padding: 3rem 2rem 2rem;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+        background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #14b8a6 100%);
         position: relative;
         overflow: hidden;
     }
@@ -147,8 +147,8 @@
     }
 
     .form-floating > .form-control:focus {
-        border-color: #6366f1;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+        border-color: #0891b2;
+        box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.15);
     }
 
     .form-floating > label {
@@ -158,13 +158,13 @@
     }
 
     [data-bs-theme="dark"] .form-floating > .form-control {
-        background: rgba(30, 27, 75, 0.6);
-        border-color: rgba(99, 102, 241, 0.25);
-        color: #f1f5f9;
+        background: rgba(22, 78, 99, 0.6);
+        border-color: rgba(8, 145, 178, 0.25);
+        color: #f0fdfa;
     }
 
     [data-bs-theme="dark"] .form-floating > .form-control:focus {
-        background: rgba(30, 27, 75, 0.8);
+        background: rgba(22, 78, 99, 0.8);
     }
 
     [data-bs-theme="dark"] .form-floating > label {
@@ -187,8 +187,8 @@
     }
 
     .password-toggle:hover {
-        color: #6366f1;
-        background: rgba(99, 102, 241, 0.1);
+        color: #0891b2;
+        background: rgba(8, 145, 178, 0.1);
     }
 
     .login-btn {
@@ -197,13 +197,13 @@
         font-size: 1.05rem;
         font-weight: 700;
         border-radius: 14px;
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+        background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #14b8a6 100%);
         border: none;
         color: white;
         transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: hidden;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 4px 15px rgba(8, 145, 178, 0.4);
         letter-spacing: 0.5px;
     }
 
@@ -224,7 +224,7 @@
 
     .login-btn:hover {
         transform: translateY(-3px);
-        box-shadow: 0 12px 40px rgba(99, 102, 241, 0.5);
+        box-shadow: 0 12px 40px rgba(8, 145, 178, 0.5);
     }
 
     .login-btn:active {
@@ -238,25 +238,25 @@
     }
 
     [data-bs-theme="dark"] .login-footer {
-        border-color: rgba(99, 102, 241, 0.15);
+        border-color: rgba(8, 145, 178, 0.15);
     }
 
     .cam-link {
         display: inline-flex;
         align-items: center;
         gap: 0.6rem;
-        color: #6366f1;
+        color: #0891b2;
         text-decoration: none;
         font-weight: 600;
         transition: all 0.3s ease;
         padding: 0.75rem 1.25rem;
         border-radius: 12px;
-        background: rgba(99, 102, 241, 0.08);
+        background: rgba(8, 145, 178, 0.08);
     }
 
     .cam-link:hover {
-        color: #a855f7;
-        background: rgba(99, 102, 241, 0.15);
+        color: #14b8a6;
+        background: rgba(8, 145, 178, 0.15);
         transform: translateX(4px);
     }
 
@@ -288,7 +288,7 @@
     }
 
     .copyright span i {
-        color: #a855f7;
+        color: #14b8a6;
     }
 
     /* Premium animated background */
@@ -307,14 +307,14 @@
         position: absolute;
         width: 6px;
         height: 6px;
-        background: linear-gradient(135deg, #6366f1, #a855f7);
+        background: linear-gradient(135deg, #0891b2, #14b8a6);
         border-radius: 50%;
         animation: rise 12s infinite;
         opacity: 0;
     }
 
     .particle:nth-child(odd) {
-        background: linear-gradient(135deg, #22d3ee, #10b981);
+        background: linear-gradient(135deg, #06b6d4, #059669);
     }
 
     @keyframes rise {
@@ -347,7 +347,7 @@
     .orb-1 {
         width: 500px;
         height: 500px;
-        background: linear-gradient(135deg, #6366f1, #a855f7);
+        background: linear-gradient(135deg, #0891b2, #14b8a6);
         top: -200px;
         right: -200px;
         animation: float-orb 20s ease-in-out infinite;
@@ -356,7 +356,7 @@
     .orb-2 {
         width: 400px;
         height: 400px;
-        background: linear-gradient(135deg, #10b981, #22d3ee);
+        background: linear-gradient(135deg, #059669, #06b6d4);
         bottom: -150px;
         left: -150px;
         animation: float-orb 25s ease-in-out infinite reverse;
@@ -395,10 +395,10 @@
             <!-- Header -->
             <div class="login-header">
                 <div class="login-icon">
-                    <i class="bi bi-shield-lock-fill"></i>
+                    <i class="bi bi-hospital-fill"></i>
                 </div>
-                <h3>Welcome Back</h3>
-                <p>Sign in to access your dashboard</p>
+                <h3>Healthcare Admin Login</h3>
+                <p>Secure biometric attendance management</p>
             </div>
 
             <!-- Login Form -->
@@ -444,8 +444,8 @@
         <!-- Copyright -->
         <div class="copyright">
             <span>
-                <i class="bi bi-person-badge-fill"></i>
-                SmartFace Pro &copy; 2025
+                <i class="bi bi-hospital-fill"></i>
+                MediCare Attendance &copy; 2025
             </span>
         </div>
     </div>

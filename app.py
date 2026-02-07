@@ -23,8 +23,8 @@ from PIL import Image
 from models import db, Admin, Employee, Attendance, Settings
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'smartface-attendance-pro-2025')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smartface.db'
+app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'medicare-attendance-kathmandu-2025')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///medicare_attendance.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
@@ -34,7 +34,19 @@ FACE_DETECTOR = "opencv"  # Use OpenCV detector (most compatible)
 RECOGNITION_THRESHOLD = 0.72  # Stricter threshold to prevent false matches
 MIN_FACE_CONFIDENCE = 0.80  # Confidence for face detection
 ANTI_SPOOFING_ENABLED = True  # Using DeepFace neural network (fast & reliable)
-ANTI_SPOOFING_THRESHOLD = 0.45
+ANTI_SPOOFING_THRESHOLD = 0.55  # Stricter threshold for anti-spoofing
+
+# Additional anti-spoofing thresholds (MAXIMUM STRICT for healthcare security)
+PHONE_DETECTION_THRESHOLD = 0.55  # Lower score = phone detected (STRICTER)
+SCREEN_DETECTION_THRESHOLD = 0.55  # Lower score = screen detected (STRICTER)
+PRINT_DETECTION_THRESHOLD = 0.55  # Lower score = printed photo detected (STRICTER)
+COMBINED_SPOOF_THRESHOLD = 0.65  # Average of all checks must be above this
+# Close-up screen detection thresholds
+COLOR_CONSISTENCY_THRESHOLD = 15  # Lower = more consistent (digital)
+SHARPNESS_THRESHOLD = 2500  # Higher = over-sharpened (digital)
+TEXTURE_THRESHOLD = 6  # Lower = lacking natural texture (digital)
+BRIGHTNESS_UNIFORMITY_THRESHOLD = 12  # Lower = too uniform (screen backlight)
+EDGE_DENSITY_THRESHOLD = 0.15  # Higher = too many sharp edges (digital)
 
 # Liveness detection - DISABLED (using DeepFace anti-spoofing instead)
 LIVENESS_ENABLED = False  # Disabled - DeepFace anti-spoof is faster
@@ -344,24 +356,24 @@ def detect_phone_screen(small_img, gray_img):
         else:
             detection_flags.append(('glare_ok', 0.9))
 
-        # Calculate final score - BALANCED approach
+        # Calculate final score - STRICT approach for healthcare security
         all_scores = [score for _, score in detection_flags]
         min_score = min(all_scores)
         avg_score = sum(all_scores) / len(all_scores)
 
-        # Count very suspicious flags (clear phone indicators)
-        very_suspicious = sum(1 for s in all_scores if s <= 0.3)
-        suspicious_count = sum(1 for s in all_scores if s < 0.5)
+        # Count very suspicious flags (clear phone indicators) - STRICTER
+        very_suspicious = sum(1 for s in all_scores if s <= 0.35)
+        suspicious_count = sum(1 for s in all_scores if s < 0.6)
 
-        if very_suspicious >= 2:
-            # Multiple clear phone indicators
-            final_score = 0.4 * min_score + 0.6 * avg_score
-        elif very_suspicious >= 1 and suspicious_count >= 2:
-            # One clear + others suspicious
+        if very_suspicious >= 1:
+            # Even ONE clear phone indicator should fail - STRICT
             final_score = 0.5 * min_score + 0.5 * avg_score
-        elif suspicious_count >= 3:
-            # Multiple moderate indicators
+        elif suspicious_count >= 2:
+            # Two moderate indicators
             final_score = 0.6 * min_score + 0.4 * avg_score
+        elif suspicious_count >= 1:
+            # One moderate indicator
+            final_score = 0.4 * min_score + 0.6 * avg_score
         else:
             # Probably real - use mostly average
             final_score = 0.2 * min_score + 0.8 * avg_score
@@ -457,17 +469,20 @@ def detect_screen_display_fast(small_img, gray_img):
         else:
             detection_flags.append(('color_temp_ok', 0.9))
 
-        # Use balanced scoring
+        # Use STRICT scoring for healthcare security
         all_scores = [score for _, score in detection_flags]
         avg_score = sum(all_scores) / len(all_scores)
         min_score = min(all_scores)
-        very_suspicious = sum(1 for s in all_scores if s <= 0.3)
-        suspicious_count = sum(1 for s in all_scores if s < 0.5)
+        very_suspicious = sum(1 for s in all_scores if s <= 0.35)
+        suspicious_count = sum(1 for s in all_scores if s < 0.6)
 
-        if very_suspicious >= 2:
-            final_score = 0.4 * min_score + 0.6 * avg_score
-        elif suspicious_count >= 3:
+        if very_suspicious >= 1:
+            # Even ONE clear screen indicator should fail - STRICT
             final_score = 0.5 * min_score + 0.5 * avg_score
+        elif suspicious_count >= 2:
+            final_score = 0.6 * min_score + 0.4 * avg_score
+        elif suspicious_count >= 1:
+            final_score = 0.4 * min_score + 0.6 * avg_score
         else:
             final_score = 0.2 * min_score + 0.8 * avg_score
 
@@ -537,17 +552,20 @@ def detect_printed_photo_fast(small_img, gray_img):
         else:
             detection_flags.append(('saturation_ok', 0.9))
 
-        # Use balanced scoring
+        # Use STRICT scoring for healthcare security
         all_scores = [score for _, score in detection_flags]
         avg_score = sum(all_scores) / len(all_scores)
         min_score = min(all_scores)
-        very_suspicious = sum(1 for s in all_scores if s <= 0.35)
-        suspicious_count = sum(1 for s in all_scores if s < 0.5)
+        very_suspicious = sum(1 for s in all_scores if s <= 0.40)
+        suspicious_count = sum(1 for s in all_scores if s < 0.6)
 
-        if very_suspicious >= 2:
-            final_score = 0.4 * min_score + 0.6 * avg_score
-        elif suspicious_count >= 3:
+        if very_suspicious >= 1:
+            # Even ONE clear print indicator should fail - STRICT
             final_score = 0.5 * min_score + 0.5 * avg_score
+        elif suspicious_count >= 2:
+            final_score = 0.6 * min_score + 0.4 * avg_score
+        elif suspicious_count >= 1:
+            final_score = 0.4 * min_score + 0.6 * avg_score
         else:
             final_score = 0.2 * min_score + 0.8 * avg_score
 
@@ -1460,7 +1478,7 @@ def update_employee(id):
         flash(f'Employee {employee.full_name} has been updated successfully.', 'success')
         return redirect(url_for('employees'))
 
-    departments = ['Engineering', 'Human Resources', 'Finance', 'Marketing', 'Sales', 'Operations', 'IT Support', 'Administration']
+    departments = ['Cardiology', 'Neurology', 'Pediatrics', 'Radiology', 'Emergency', 'Surgery', 'Nursing', 'Pharmacy', 'Laboratory', 'Administration', 'IT Support']
     return render_template('update_employee.html', employee=employee, departments=departments)
 
 @app.route('/employees/image/<int:id>')
@@ -1558,7 +1576,7 @@ def enroll():
             flash(f'Error processing image: {str(e)}', 'danger')
             return redirect(url_for('enroll'))
 
-    departments = ['Engineering', 'Human Resources', 'Finance', 'Marketing', 'Sales', 'Operations', 'IT Support', 'Administration']
+    departments = ['Cardiology', 'Neurology', 'Pediatrics', 'Radiology', 'Emergency', 'Surgery', 'Nursing', 'Pharmacy', 'Laboratory', 'Administration', 'IT Support']
     return render_template('enroll.html', departments=departments)
 
 @app.route('/attend')
@@ -1605,12 +1623,116 @@ def recognize():
                 'message': 'No face detected'
             })
 
+        # FACE QUALITY CHECK: Detect if face is "too perfect" (digital photo characteristic)
+        if face_info.get('confidence', 0) > 0.99:
+            # Confidence of 0.99+ is suspiciously perfect - real faces rarely get this
+            print(f"SUSPICIOUS: Face confidence too perfect ({face_info['confidence']:.4f})")
+            # This alone won't reject, but increases suspicion for later checks
+
         # SECOND: Run anti-spoofing check (static image analysis)
         is_real, spoof_score = check_anti_spoofing(image_array)
         if not is_real:
             return jsonify({
                 'success': False,
                 'message': 'Spoof detected! Photos and videos are not allowed.',
+                'spoof_detected': True
+            })
+
+        # ENHANCED ANTI-SPOOFING: Additional checks for phone screens and printed photos
+        # Resize images for faster processing
+        small_img = cv2.resize(image_array, (320, 240))
+        gray_img = cv2.cvtColor(small_img, cv2.COLOR_BGR2GRAY)
+
+        # === CLOSE-UP SCREEN DETECTION ===
+        # When phone is very close, check for digital image characteristics
+        close_up_is_screen = False
+
+        # 1. Check for unnatural color consistency (digital images have perfect pixels)
+        color_std = np.std(small_img, axis=(0, 1))
+        color_consistency = np.mean(color_std)
+        if color_consistency < 15:  # Too consistent = digital
+            print(f"CLOSE-UP SCREEN: Color too consistent ({color_consistency:.2f})")
+            close_up_is_screen = True
+
+        # 2. Check for digital compression artifacts (JPEG artifacts from phone photos)
+        laplacian = cv2.Laplacian(gray_img, cv2.CV_64F)
+        lap_var = np.var(laplacian)
+        if lap_var > 2500:  # Too sharp/crispy = screen (over-sharpened digital image)
+            print(f"CLOSE-UP SCREEN: Over-sharpened ({lap_var:.1f})")
+            close_up_is_screen = True
+
+        # 3. Check for lack of natural skin micro-texture
+        kernel = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
+        high_freq = cv2.filter2D(gray_img, -1, kernel)
+        hf_std = np.std(high_freq)
+        if hf_std < 6:  # Lack of natural texture = digital
+            print(f"CLOSE-UP SCREEN: No natural skin texture ({hf_std:.2f})")
+            close_up_is_screen = True
+
+        # 4. Check for uniform brightness (screens have even backlight even up close)
+        brightness_blocks = []
+        h, w = gray_img.shape
+        for i in range(4):
+            for j in range(4):
+                block = gray_img[i*h//4:(i+1)*h//4, j*w//4:(j+1)*w//4]
+                brightness_blocks.append(np.mean(block))
+        brightness_std = np.std(brightness_blocks)
+        if brightness_std < 12:  # Too uniform = screen backlight
+            print(f"CLOSE-UP SCREEN: Uniform backlight ({brightness_std:.2f})")
+            close_up_is_screen = True
+
+        # 5. Check for pixel-perfect edges (digital images have sharp edges)
+        edges = cv2.Canny(gray_img, 50, 150)
+        edge_pixels = np.sum(edges > 0) / edges.size
+        if edge_pixels > 0.15:  # Too many sharp edges = digital
+            print(f"CLOSE-UP SCREEN: Too many sharp edges ({edge_pixels:.3f})")
+            close_up_is_screen = True
+
+        if close_up_is_screen:
+            return jsonify({
+                'success': False,
+                'message': 'Digital photo detected! Please use your real face, not a screen or photo.',
+                'spoof_detected': True
+            })
+
+        # === STANDARD DETECTION (works better when phone is at distance) ===
+        # Check for phone screen display
+        phone_score = detect_phone_screen(small_img, gray_img)
+        if phone_score < 0.55:  # STRICTER: Phone detected (low score means phone)
+            print(f"PHONE DETECTED: score={phone_score:.3f}")
+            return jsonify({
+                'success': False,
+                'message': 'Phone screen detected! Please use your real face, not a photo on phone.',
+                'spoof_detected': True
+            })
+
+        # Check for any screen display (tablet, monitor, etc.)
+        screen_score = detect_screen_display_fast(small_img, gray_img)
+        if screen_score < 0.55:  # STRICTER: Screen detected
+            print(f"SCREEN DETECTED: score={screen_score:.3f}")
+            return jsonify({
+                'success': False,
+                'message': 'Screen display detected! Please use your real face, not a digital photo.',
+                'spoof_detected': True
+            })
+
+        # Check for printed photo
+        print_score = detect_printed_photo_fast(small_img, gray_img)
+        if print_score < 0.55:  # STRICTER: Printed photo detected
+            print(f"PRINTED PHOTO DETECTED: score={print_score:.3f}")
+            return jsonify({
+                'success': False,
+                'message': 'Printed photo detected! Please use your real face, not a printed image.',
+                'spoof_detected': True
+            })
+
+        # Combined check - if multiple scores are borderline suspicious
+        avg_spoof_score = (phone_score + screen_score + print_score) / 3
+        if avg_spoof_score < 0.65:  # Average indicates likely spoof
+            print(f"COMBINED SPOOF DETECTION: avg={avg_spoof_score:.3f} (phone={phone_score:.3f}, screen={screen_score:.3f}, print={print_score:.3f})")
+            return jsonify({
+                'success': False,
+                'message': 'Suspicious image detected! Please ensure you are using your real face in good lighting.',
                 'spoof_detected': True
             })
 

@@ -1,47 +1,47 @@
 /* ============================================
-   SmartFace Attendance Pro - Premium UI 2025
-   Polished Glassmorphism + Refined Neon Theme
+   MediCare Attendance - Healthcare Institution System
+   Secure Biometric-Based Employee Attendance for Kathmandu Valley
    ============================================ */
 
 /* Google Fonts - Inter for modern typography */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 /* ============================================
-   CSS Variables - Enhanced Color System
+   CSS Variables - Healthcare Color System
    ============================================ */
 :root {
-    /* Primary Colors - Refined Indigo */
-    --primary: #6366f1;
-    --primary-light: #818cf8;
-    --primary-lighter: #a5b4fc;
-    --primary-dark: #4f46e5;
-    --primary-darker: #4338ca;
-    --primary-glow: rgba(99, 102, 241, 0.5);
+    /* Primary Colors - Medical Blue & Teal */
+    --primary: #0891b2;
+    --primary-light: #06b6d4;
+    --primary-lighter: #22d3ee;
+    --primary-dark: #0e7490;
+    --primary-darker: #164e63;
+    --primary-glow: rgba(8, 145, 178, 0.5);
 
-    /* Accent Colors - Balanced Neon */
-    --accent-cyan: #22d3ee;
-    --accent-cyan-glow: rgba(34, 211, 238, 0.4);
-    --accent-emerald: #10b981;
-    --accent-emerald-glow: rgba(16, 185, 129, 0.4);
-    --accent-purple: #a855f7;
-    --accent-purple-glow: rgba(168, 85, 247, 0.4);
-    --accent-pink: #ec4899;
-    --accent-orange: #f97316;
-    --accent-amber: #fbbf24;
+    /* Accent Colors - Medical Theme */
+    --accent-cyan: #06b6d4;
+    --accent-cyan-glow: rgba(6, 182, 212, 0.4);
+    --accent-emerald: #059669;
+    --accent-emerald-glow: rgba(5, 150, 105, 0.4);
+    --accent-purple: #7c3aed;
+    --accent-purple-glow: rgba(124, 58, 237, 0.4);
+    --accent-pink: #db2777;
+    --accent-orange: #ea580c;
+    --accent-amber: #f59e0b;
 
-    /* Status Colors - Vibrant but Refined */
-    --success: #10b981;
-    --success-light: #34d399;
-    --success-bg: rgba(16, 185, 129, 0.12);
-    --warning: #f59e0b;
-    --warning-light: #fbbf24;
-    --warning-bg: rgba(245, 158, 11, 0.12);
-    --danger: #ef4444;
-    --danger-light: #f87171;
-    --danger-bg: rgba(239, 68, 68, 0.12);
-    --info: #3b82f6;
-    --info-light: #60a5fa;
-    --info-bg: rgba(59, 130, 246, 0.12);
+    /* Status Colors - Medical Theme */
+    --success: #059669;
+    --success-light: #10b981;
+    --success-bg: rgba(5, 150, 105, 0.12);
+    --warning: #d97706;
+    --warning-light: #f59e0b;
+    --warning-bg: rgba(217, 119, 6, 0.12);
+    --danger: #dc2626;
+    --danger-light: #ef4444;
+    --danger-bg: rgba(220, 38, 38, 0.12);
+    --info: #0284c7;
+    --info-light: #0ea5e9;
+    --info-bg: rgba(2, 132, 199, 0.12);
 
     /* Light Theme - Refined */
     --bg-primary: #f8fafc;
@@ -55,17 +55,17 @@
     --border-color: rgba(148, 163, 184, 0.2);
     --border-strong: rgba(148, 163, 184, 0.3);
 
-    /* Premium Gradients */
-    --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    --gradient-primary-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-    --gradient-success: linear-gradient(135deg, #10b981 0%, #14b8a6 50%, #22d3ee 100%);
-    --gradient-danger: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
-    --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-    --gradient-info: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-    --gradient-dark: linear-gradient(135deg, #0f0f23 0%, #1e1b4b 50%, #312e81 100%);
-    --gradient-mesh: radial-gradient(at 40% 20%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-                     radial-gradient(at 80% 0%, rgba(168, 85, 247, 0.06) 0px, transparent 50%),
-                     radial-gradient(at 0% 50%, rgba(34, 211, 238, 0.06) 0px, transparent 50%);
+    /* Healthcare Gradients */
+    --gradient-primary: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #14b8a6 100%);
+    --gradient-primary-subtle: linear-gradient(135deg, rgba(8, 145, 178, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+    --gradient-success: linear-gradient(135deg, #059669 0%, #10b981 50%, #14b8a6 100%);
+    --gradient-danger: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+    --gradient-warning: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+    --gradient-info: linear-gradient(135deg, #0284c7 0%, #0891b2 100%);
+    --gradient-dark: linear-gradient(135deg, #0f1419 0%, #164e63 50%, #0e7490 100%);
+    --gradient-mesh: radial-gradient(at 40% 20%, rgba(8, 145, 178, 0.08) 0px, transparent 50%),
+                     radial-gradient(at 80% 0%, rgba(20, 184, 166, 0.06) 0px, transparent 50%),
+                     radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.06) 0px, transparent 50%);
 
     /* Enhanced Glass Effect */
     --glass-bg: rgba(255, 255, 255, 0.75);
@@ -82,13 +82,13 @@
     --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.06), 0 4px 8px rgba(0, 0, 0, 0.04);
     --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.08), 0 12px 24px rgba(0, 0, 0, 0.04);
     --shadow-2xl: 0 32px 64px rgba(0, 0, 0, 0.1), 0 16px 32px rgba(0, 0, 0, 0.06);
-    --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.25);
-    --shadow-glow-lg: 0 0 60px rgba(99, 102, 241, 0.35);
+    --shadow-glow: 0 0 40px rgba(8, 145, 178, 0.25);
+    --shadow-glow-lg: 0 0 60px rgba(8, 145, 178, 0.35);
     --shadow-neon: 0 0 20px var(--accent-cyan-glow), 0 0 40px var(--accent-cyan-glow);
-    --shadow-primary: 0 4px 14px rgba(99, 102, 241, 0.35);
-    --shadow-success: 0 4px 14px rgba(16, 185, 129, 0.35);
-    --shadow-danger: 0 4px 14px rgba(239, 68, 68, 0.35);
-    --shadow-warning: 0 4px 14px rgba(245, 158, 11, 0.35);
+    --shadow-primary: 0 4px 14px rgba(8, 145, 178, 0.35);
+    --shadow-success: 0 4px 14px rgba(5, 150, 105, 0.35);
+    --shadow-danger: 0 4px 14px rgba(220, 38, 38, 0.35);
+    --shadow-warning: 0 4px 14px rgba(217, 119, 6, 0.35);
 
     /* Refined Transitions */
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -119,34 +119,34 @@
     --space-12: 3rem;
 }
 
-/* Dark Theme Variables - Refined */
+/* Dark Theme Variables - Healthcare */
 [data-bs-theme="dark"] {
-    --bg-primary: #0a0a1a;
-    --bg-secondary: #12122a;
-    --bg-tertiary: #1a1a3a;
-    --bg-elevated: #1e1e42;
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #64748b;
-    --border-color: rgba(99, 102, 241, 0.15);
-    --border-strong: rgba(99, 102, 241, 0.25);
+    --bg-primary: #0a1419;
+    --bg-secondary: #0f1a1e;
+    --bg-tertiary: #164e63;
+    --bg-elevated: #155e75;
+    --text-primary: #f0fdfa;
+    --text-secondary: #ccfbf1;
+    --text-muted: #5eead4;
+    --border-color: rgba(8, 145, 178, 0.15);
+    --border-strong: rgba(8, 145, 178, 0.25);
 
-    --glass-bg: rgba(18, 18, 42, 0.8);
-    --glass-bg-strong: rgba(18, 18, 42, 0.95);
-    --glass-border: rgba(99, 102, 241, 0.2);
-    --glass-border-subtle: rgba(99, 102, 241, 0.1);
+    --glass-bg: rgba(15, 26, 30, 0.8);
+    --glass-bg-strong: rgba(15, 26, 30, 0.95);
+    --glass-border: rgba(8, 145, 178, 0.2);
+    --glass-border-subtle: rgba(8, 145, 178, 0.1);
     --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 
     --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6);
-    --shadow-glow: 0 0 50px rgba(99, 102, 241, 0.3);
-    --shadow-glow-lg: 0 0 80px rgba(99, 102, 241, 0.4);
+    --shadow-glow: 0 0 50px rgba(8, 145, 178, 0.3);
+    --shadow-glow-lg: 0 0 80px rgba(8, 145, 178, 0.4);
 
-    --gradient-mesh: radial-gradient(at 40% 20%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-                     radial-gradient(at 80% 0%, rgba(168, 85, 247, 0.1) 0px, transparent 50%),
-                     radial-gradient(at 0% 50%, rgba(34, 211, 238, 0.08) 0px, transparent 50%);
+    --gradient-mesh: radial-gradient(at 40% 20%, rgba(8, 145, 178, 0.15) 0px, transparent 50%),
+                     radial-gradient(at 80% 0%, rgba(20, 184, 166, 0.1) 0px, transparent 50%),
+                     radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.08) 0px, transparent 50%);
 }
 
 /* ============================================
@@ -221,7 +221,7 @@ h6 { font-size: 1rem; }
 }
 
 .text-gradient-animated {
-    background: linear-gradient(135deg, #6366f1, #a855f7, #22d3ee, #6366f1);
+    background: linear-gradient(135deg, #0891b2, #14b8a6, #06b6d4, #0891b2);
     background-size: 300% 300%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1032,7 +1032,7 @@ h6 { font-size: 1rem; }
 }
 
 [data-bs-theme="dark"] .table-hover tbody tr:hover {
-    background: rgba(99, 102, 241, 0.08);
+    background: rgba(8, 145, 178, 0.08);
 }
 
 .table-responsive {
@@ -1354,8 +1354,8 @@ footer::before {
 }
 
 @keyframes glow {
-    0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
-    50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.5); }
+    0%, 100% { box-shadow: 0 0 20px rgba(8, 145, 178, 0.3); }
+    50% { box-shadow: 0 0 40px rgba(8, 145, 178, 0.5); }
 }
 
 @keyframes shimmer {
@@ -1534,7 +1534,7 @@ footer::before {
 }
 
 [data-bs-theme="dark"] .quick-action-btn:hover {
-    background: rgba(99, 102, 241, 0.12);
+    background: rgba(8, 145, 178, 0.12);
 }
 
 /* ============================================
@@ -1553,7 +1553,7 @@ footer::before {
 .avatar:hover {
     transform: scale(1.08);
     border-color: var(--primary);
-    box-shadow: 0 0 24px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 24px rgba(8, 145, 178, 0.4);
 }
 
 .avatar-sm {
@@ -1586,7 +1586,7 @@ footer::before {
 
 .avatar-placeholder:hover {
     transform: scale(1.08);
-    box-shadow: 0 0 24px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 24px rgba(8, 145, 178, 0.5);
 }
 
 .avatar-placeholder-sm {
@@ -1732,7 +1732,7 @@ footer::before {
 }
 
 code {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(8, 145, 178, 0.1);
     color: var(--primary);
     padding: 0.2rem 0.5rem;
     border-radius: var(--radius-sm);
@@ -1742,7 +1742,7 @@ code {
 }
 
 [data-bs-theme="dark"] code {
-    background: rgba(99, 102, 241, 0.2);
+    background: rgba(8, 145, 178, 0.2);
     color: var(--primary-light);
 }
 

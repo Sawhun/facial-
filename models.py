@@ -103,10 +103,10 @@ class Settings(db.Model):
     auto_capture_interval = db.Column(db.Integer, default=3)
 
     # Company info
-    company_name = db.Column(db.String(100), default='SmartFace Attendance Pro')
+    company_name = db.Column(db.String(100), default='MediCare Attendance System - Kathmandu Valley')
 
     # Timezone
-    timezone = db.Column(db.String(50), default='Asia/Manila')
+    timezone = db.Column(db.String(50), default='Asia/Kathmandu')
 
     # Last updated
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
