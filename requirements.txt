@@ -10,6 +10,9 @@ flask-cors>=4.0.0
 # Security
 bcrypt>=4.1.0
 werkzeug>=3.0.0
+cryptography>=42.0.0  # For encryption at rest
+bleach>=6.1.0  # For input sanitization (XSS prevention)
+python-dotenv>=1.0.0  # For loading .env environment variables
 
 # Image Processing
 opencv-python>=4.8.0

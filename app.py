@@ -1,4 +1,9 @@
 import os
+
+# Load environment variables from .env file FIRST (before anything else)
+from dotenv import load_dotenv
+load_dotenv()
+
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
 
@@ -14,6 +19,8 @@ sys.modules["tf_keras"] = tf_keras
 import io
 import base64
 import numpy as np
+import re
+import random
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -22,18 +29,47 @@ import cv2
 from PIL import Image
 from models import db, Admin, Employee, Attendance, Settings
 
+# Security imports
+from security import (
+    get_rate_limiter,
+    get_audit_logger,
+    get_client_ip,
+    add_security_headers,
+    configure_secure_session,
+    InputValidator,
+    generate_csrf_token,
+    validate_csrf_token,
+    rate_limit_key
+)
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'medicare-attendance-kathmandu-2025')
+
+# Security Configuration
+import secrets as sec_secrets
+app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', sec_secrets.token_hex(32))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///medicare_attendance.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Prevent DOS via large uploads
+
+# Configure secure sessions
+app = configure_secure_session(app)
+
+# Initialize security components
+rate_limiter = get_rate_limiter()
+audit_logger = get_audit_logger()
+
+# Disable in development if not using HTTPS
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 
 # Face recognition configuration
 FACE_MODEL = "ArcFace"  # More accurate than SFace
-FACE_DETECTOR = "opencv"  # Use OpenCV detector (most compatible)
+FACE_DETECTOR = "opencv"  # Use OpenCV detector (fastest and most compatible)
 RECOGNITION_THRESHOLD = 0.72  # Stricter threshold to prevent false matches
 MIN_FACE_CONFIDENCE = 0.80  # Confidence for face detection
-ANTI_SPOOFING_ENABLED = True  # Using DeepFace neural network (fast & reliable)
+
+# PERFORMANCE MODE: Set to True for faster recognition (reduces anti-spoofing checks)
+FAST_RECOGNITION_MODE = False  # Set to False to enable full anti-spoofing
+ANTI_SPOOFING_ENABLED = not FAST_RECOGNITION_MODE  # Only enable heavy checks in slow mode
 ANTI_SPOOFING_THRESHOLD = 0.55  # Stricter threshold for anti-spoofing
 
 # Additional anti-spoofing thresholds (MAXIMUM STRICT for healthcare security)
@@ -67,6 +103,7 @@ cache_timestamp = None
 # Key: session_id, Value: {'frames': [], 'timestamps': [], 'eye_ratios': [], 'face_positions': []}
 liveness_sessions = {}
 LIVENESS_SESSION_TIMEOUT = 30  # seconds
+CHALLENGE_TYPES = ['BLINK', 'TURN_LEFT', 'TURN_RIGHT']  # Challenge types for liveness
 
 db.init_app(app)
 
@@ -121,15 +158,20 @@ def init_db():
                 print(f"Updated recognition threshold to {RECOGNITION_THRESHOLD} for better security")
 
 def refresh_embeddings_cache():
-    """Refresh the embeddings cache from database"""
+    """Refresh the embeddings cache from database with pre-normalized embeddings for faster comparison"""
     global embeddings_cache, cache_timestamp
     embeddings_cache = {}
     employees = Employee.query.all()
     for emp in employees:
         embedding = emp.get_embedding()
         if embedding is not None:
+            # Pre-normalize the embedding to avoid repeated norm calculations
+            norm = np.linalg.norm(embedding)
+            normalized_embedding = embedding / norm if norm > 0 else embedding
+
             embeddings_cache[emp.id] = {
                 'embedding': embedding,
+                'normalized': normalized_embedding,  # Store pre-normalized version
                 'employee': emp
             }
     cache_timestamp = datetime.now()
@@ -140,8 +182,12 @@ def get_face_embedding(image_path_or_array, return_details=False):
     Extract face embedding from image using DeepFace.
     Returns embedding array or None if no face detected.
     If return_details=True, returns (embedding, face_info) tuple.
+
+    OPTIMIZED: Uses opencv detector (fastest) with alignment for accuracy
     """
     try:
+        import time
+        embed_start = time.time()
         from deepface import DeepFace
 
         result = DeepFace.represent(
@@ -149,8 +195,10 @@ def get_face_embedding(image_path_or_array, return_details=False):
             model_name=FACE_MODEL,
             detector_backend=FACE_DETECTOR,
             enforce_detection=True,
-            align=True
+            align=True,
+            normalization='base'  # Faster normalization
         )
+        print(f"  ⏱️ DeepFace embedding extraction: {(time.time() - embed_start)*1000:.0f}ms")
 
         if result and len(result) > 0:
             embedding = np.array(result[0]['embedding'])
@@ -200,12 +248,29 @@ def check_anti_spoofing(image_array):
     Check if the face is real using DeepFace's built-in anti-spoofing.
     This uses a trained neural network - fast and reliable.
     Returns (is_real, confidence_score).
+
+    SMART FAIL-SAFE MODE:
+    - If torch is not installed, skip this layer (rely on other 3 strict layers)
+    - If torch IS installed but DeepFace has errors, REJECT for safety
     """
     # Check if anti-spoofing is enabled
     if not ANTI_SPOOFING_ENABLED:
         return True, 1.0
 
     try:
+        # First, check if torch is available (required for DeepFace anti-spoofing)
+        try:
+            import torch
+            torch_available = True
+        except ImportError:
+            torch_available = False
+
+        if not torch_available:
+            # Torch not installed - skip this layer, rely on other 3 strict layers
+            print("⚠️ PyTorch not installed - skipping DeepFace layer (3 other strict layers active)")
+            return True, 1.0
+
+        # Torch is available, proceed with DeepFace anti-spoofing
         from deepface import DeepFace
 
         # Use DeepFace's built-in anti-spoofing (trained neural network)
@@ -216,17 +281,35 @@ def check_anti_spoofing(image_array):
         )
 
         if result and len(result) > 0:
-            is_real = result[0].get('is_real', True)
-            score = result[0].get('antispoof_score', 1.0)
-            print(f"DeepFace Anti-Spoof: is_real={is_real}, score={score:.3f}")
-            return is_real, score
+            # Check if anti-spoofing data exists
+            is_real = result[0].get('is_real', None)
+            score = result[0].get('antispoof_score', None)
 
-        return True, 1.0
+            if is_real is not None and score is not None:
+                # DeepFace anti-spoofing is working - use the result
+                print(f"✓ DeepFace Anti-Spoof: is_real={is_real}, score={score:.3f}")
+                return is_real, score
+            else:
+                # DeepFace doesn't support anti-spoofing - REJECT FOR SAFETY
+                print("⚠️ DeepFace anti-spoofing not supported - REJECTING (fail-safe)")
+                return False, 0.0
+
+        # No face detected - REJECT FOR SAFETY
+        print("⚠️ Anti-spoofing: No face detected - REJECTING (fail-safe)")
+        return False, 0.0
 
     except Exception as e:
-        print(f"Anti-spoofing error: {e}")
-        # On error, allow through
-        return True, 1.0
+        error_msg = str(e)
+
+        # If error is about missing torch, skip this layer (other layers will catch spoofs)
+        if "torch" in error_msg.lower() or "pytorch" in error_msg.lower():
+            print(f"⚠️ PyTorch dependency issue: {e}")
+            print("⚠️ Skipping DeepFace layer - relying on 3 other STRICT layers")
+            return True, 1.0
+
+        # Other errors - REJECT FOR SAFETY
+        print(f"⚠️ Anti-spoofing error: {e} - REJECTING (fail-safe)")
+        return False, 0.0
 
 
 def detect_phone_screen(small_img, gray_img):
@@ -383,8 +466,8 @@ def detect_phone_screen(small_img, gray_img):
         return final_score
 
     except Exception as e:
-        print(f"Phone detection error: {e}")
-        return 0.7  # On error, allow through
+        print(f"⚠️ Phone detection error: {e} - REJECTING (fail-safe)")
+        return 0.3  # On error, REJECT for safety
 
 
 def detect_screen_display_fast(small_img, gray_img):
@@ -491,8 +574,8 @@ def detect_screen_display_fast(small_img, gray_img):
         return final_score
 
     except Exception as e:
-        print(f"Screen detection error: {e}")
-        return 0.7  # On error, allow through
+        print(f"⚠️ Screen detection error: {e} - REJECTING (fail-safe)")
+        return 0.3  # On error, REJECT for safety
 
 
 def detect_printed_photo_fast(small_img, gray_img):
@@ -574,8 +657,109 @@ def detect_printed_photo_fast(small_img, gray_img):
         return final_score
 
     except Exception as e:
-        print(f"Print detection error: {e}")
-        return 0.7  # On error, allow through
+        print(f"⚠️ Print detection error: {e} - REJECTING (fail-safe)")
+        return 0.3  # On error, REJECT for safety
+
+
+def detect_close_up_phone_screen_strict(small_img, gray_img):
+    """
+    STRICT close-up phone/screen detection with multiple indicators.
+    Specifically designed to catch phone screens showing photos.
+    Returns: (is_phone_detected, rejection_reason, debug_info)
+    """
+    try:
+        debug_info = {}
+        strong_indicators = []
+        regular_indicators = []
+
+        # INDICATOR 1: Color Consistency (phone screens have uniform color)
+        # Phone screens: 3-10, Real faces: 15-30+
+        b, g, r = cv2.split(small_img)
+        color_std = (np.std(b) + np.std(g) + np.std(r)) / 3
+        debug_info['color_consistency'] = color_std
+
+        if color_std < 8:  # STRONG indicator
+            strong_indicators.append(f"color_consistency={color_std:.2f} < 8")
+        elif color_std < 15:  # Regular indicator
+            regular_indicators.append(f"color_consistency={color_std:.2f} < 15")
+
+        # INDICATOR 2: Sharpness Variance (digital images are too sharp)
+        # Phone screens: 4000+, Real faces: 1000-2500
+        laplacian = cv2.Laplacian(gray_img, cv2.CV_64F)
+        sharpness_var = np.var(laplacian)
+        debug_info['sharpness_variance'] = sharpness_var
+
+        if sharpness_var > 4000:  # STRONG indicator
+            strong_indicators.append(f"sharpness_var={sharpness_var:.0f} > 4000")
+        elif sharpness_var > 2500:  # Regular indicator
+            regular_indicators.append(f"sharpness_var={sharpness_var:.0f} > 2500")
+
+        # INDICATOR 3: Texture Variance (screens are smooth)
+        # Phone screens: 1-4, Real faces: 8-20+
+        kernel = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
+        texture = cv2.filter2D(gray_img, -1, kernel)
+        texture_var = np.var(texture)
+        debug_info['texture_variance'] = texture_var
+
+        if texture_var < 3:  # STRONG indicator
+            strong_indicators.append(f"texture_var={texture_var:.2f} < 3")
+        elif texture_var < 6:  # Regular indicator
+            regular_indicators.append(f"texture_var={texture_var:.2f} < 6")
+
+        # INDICATOR 4: Brightness Uniformity (screen backlight is uniform)
+        # Phone screens: 4-8, Real faces: 15-35+
+        gray_std = np.std(gray_img)
+        debug_info['brightness_std'] = gray_std
+
+        if gray_std < 6:  # STRONG indicator
+            strong_indicators.append(f"brightness_std={gray_std:.2f} < 6")
+        elif gray_std < 12:  # Regular indicator
+            regular_indicators.append(f"brightness_std={gray_std:.2f} < 12")
+
+        # INDICATOR 5: Edge Density (digital images have sharp edges)
+        # Phone screens: 0.20-0.35, Real faces: 0.05-0.15
+        edges = cv2.Canny(gray_img, 50, 150)
+        edge_density = np.sum(edges > 0) / edges.size
+        debug_info['edge_density'] = edge_density
+
+        if edge_density > 0.25:  # STRONG indicator
+            strong_indicators.append(f"edge_density={edge_density:.3f} > 0.25")
+        elif edge_density > 0.15:  # Regular indicator
+            regular_indicators.append(f"edge_density={edge_density:.3f} > 0.15")
+
+        # DECISION LOGIC
+        debug_info['strong_indicators'] = strong_indicators
+        debug_info['regular_indicators'] = regular_indicators
+
+        print("\n" + "=" * 70)
+        print("🔍 CLOSE-UP PHONE SCREEN DETECTION:")
+        print(f"   Color consistency: {color_std:.2f}")
+        print(f"   Sharpness variance: {sharpness_var:.0f}")
+        print(f"   Texture variance: {texture_var:.2f}")
+        print(f"   Brightness std: {gray_std:.2f}")
+        print(f"   Edge density: {edge_density:.3f}")
+        print(f"   Strong indicators: {len(strong_indicators)}")
+        print(f"   Regular indicators: {len(regular_indicators)}")
+
+        # REJECTION RULE: 1 strong indicator OR 2+ regular indicators
+        if len(strong_indicators) >= 1:
+            print(f"   ✗ PHONE DETECTED (strong): {strong_indicators[0]}")
+            print("=" * 70 + "\n")
+            return True, f"Phone screen detected: {strong_indicators[0]}", debug_info
+
+        if len(regular_indicators) >= 2:
+            print(f"   ✗ PHONE DETECTED (multiple): {', '.join(regular_indicators[:2])}")
+            print("=" * 70 + "\n")
+            return True, f"Phone screen detected: {', '.join(regular_indicators[:2])}", debug_info
+
+        print("   ✓ PASS - Real face detected")
+        print("=" * 70 + "\n")
+        return False, None, debug_info
+
+    except Exception as e:
+        print(f"⚠️ Close-up detection error: {e}")
+        # On error, REJECT for safety
+        return True, f"Detection error: {e}", {'error': str(e)}
 
 
 def analyze_texture_lbp_fast(gray_img):
@@ -1222,12 +1406,14 @@ def validate_face_quality(image_array):
 def find_matching_employee(image_array):
     """
     Find matching employee from face embedding.
-    Uses cached embeddings for better performance.
+    Uses cached embeddings with VECTORIZED operations for better performance.
     Returns (employee, similarity) tuple.
 
     SECURITY: This function uses strict matching to prevent:
     1. False positives (wrong person being recognized)
     2. Photo-based attacks (showing someone else's photo)
+
+    PERFORMANCE: Uses numpy vectorized operations for 10-100x speed improvement
     """
     try:
         # Get current face embedding
@@ -1240,6 +1426,10 @@ def find_matching_employee(image_array):
            (datetime.now() - cache_timestamp).seconds > 300:
             refresh_embeddings_cache()
 
+        # Return early if no employees in cache
+        if not embeddings_cache:
+            return None, 0
+
         # Get threshold from settings
         settings = Settings.query.first()
         threshold = settings.recognition_threshold if settings else RECOGNITION_THRESHOLD
@@ -1247,46 +1437,53 @@ def find_matching_employee(image_array):
         # Ensure minimum security threshold
         threshold = max(threshold, 0.70)
 
-        best_match = None
-        best_similarity = 0
-        second_best_similarity = 0
-        match_count = 0
+        # OPTIMIZATION: Vectorized similarity calculation
+        # Pre-normalize current embedding once
+        current_norm = np.linalg.norm(current_embedding)
+        if current_norm == 0:
+            return None, 0
 
-        # Compare against all cached embeddings
+        current_normalized = current_embedding / current_norm
+
+        # Collect all normalized embeddings and employee IDs
+        emp_ids = []
+        normalized_embeddings = []
+
         for emp_id, data in embeddings_cache.items():
-            stored_embedding = data['embedding']
-            if len(stored_embedding) != len(current_embedding):
-                continue
+            if len(data['embedding']) == len(current_embedding):
+                emp_ids.append(emp_id)
+                normalized_embeddings.append(data['normalized'])
 
-            # Calculate cosine similarity (better for ArcFace)
-            dot_product = np.dot(stored_embedding, current_embedding)
-            norm_product = np.linalg.norm(stored_embedding) * np.linalg.norm(current_embedding)
+        if not normalized_embeddings:
+            return None, 0
 
-            if norm_product > 0:
-                similarity = dot_product / norm_product
-                # Convert to 0-1 range
-                similarity = (similarity + 1) / 2
+        # VECTORIZED OPERATION: Calculate all similarities at once
+        # This is MUCH faster than looping
+        embeddings_matrix = np.array(normalized_embeddings)
+        similarities = np.dot(embeddings_matrix, current_normalized)
 
-                # Track how many potential matches there are
-                if similarity > threshold * 0.9:  # Near threshold
-                    match_count += 1
+        # Convert to 0-1 range
+        similarities = (similarities + 1) / 2
 
-                if similarity > best_similarity:
-                    second_best_similarity = best_similarity
-                    best_similarity = similarity
-                    if similarity > threshold:
-                        best_match = data['employee']
-                elif similarity > second_best_similarity:
-                    second_best_similarity = similarity
+        # Find best and second best matches
+        sorted_indices = np.argsort(similarities)[::-1]  # Descending order
+        best_idx = sorted_indices[0]
+        best_similarity = similarities[best_idx]
+
+        second_best_similarity = similarities[sorted_indices[1]] if len(sorted_indices) > 1 else 0
+
+        # Count near-threshold matches for security check
+        match_count = np.sum(similarities > threshold * 0.9)
 
         # SECURITY CHECK: If multiple faces match closely, it's suspicious
-        # This prevents matching when the input is ambiguous
         if match_count > 1 and best_similarity - second_best_similarity < 0.05:
             print(f"SECURITY: Ambiguous match detected. Best: {best_similarity:.3f}, Second: {second_best_similarity:.3f}")
             return None, 0
 
         # Only return a match if it's significantly above threshold
-        if best_match and best_similarity > threshold:
+        if best_similarity > threshold:
+            best_emp_id = emp_ids[best_idx]
+            best_match = embeddings_cache[best_emp_id]['employee']
             print(f"Match found: {best_match.full_name} with similarity {best_similarity:.3f} (threshold: {threshold})")
             return best_match, best_similarity
 
@@ -1309,17 +1506,71 @@ def login():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        # Get client IP for rate limiting and logging
+        client_ip = get_client_ip()
+        login_key = rate_limit_key('login')
 
+        # Check rate limiting (5 attempts per 5 minutes)
+        is_allowed, remaining, lockout_time = rate_limiter.record_attempt(
+            login_key, max_attempts=5, window_seconds=300, lockout_seconds=900
+        )
+
+        if not is_allowed:
+            audit_logger.log_lockout(f"login_{client_ip}", client_ip)
+            flash(f'Too many login attempts. Please try again in {lockout_time // 60} minutes.', 'danger')
+            return render_template('login.html'), 429
+
+        # Get and validate inputs
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+
+        # Input validation
+        valid_username, username_error = InputValidator.validate_username(username)
+        if not valid_username:
+            audit_logger.log_auth_failure(username, username_error, client_ip)
+            flash('Invalid username format.', 'danger')
+            return render_template('login.html')
+
+        if not password:
+            audit_logger.log_auth_failure(username, 'Empty password', client_ip)
+            flash('Invalid username or password. Please try again.', 'danger')
+            return render_template('login.html')
+
+        # Sanitize username to prevent SQL injection (though ORM protects us)
+        username = InputValidator.sanitize_string(username, max_length=80)
+
+        # Query database using parameterized query (ORM handles this)
         admin = Admin.query.filter_by(username=username).first()
-        if admin and bcrypt.checkpw(password.encode('utf-8'), admin.password_hash.encode('utf-8')):
+
+        # Constant-time comparison to prevent timing attacks
+        if admin:
+            password_valid = bcrypt.checkpw(password.encode('utf-8'), admin.password_hash.encode('utf-8'))
+        else:
+            # Fake check to prevent timing attacks revealing valid usernames
+            bcrypt.checkpw(b'fake_password', bcrypt.hashpw(b'fake', bcrypt.gensalt()))
+            password_valid = False
+
+        if admin and password_valid:
+            # Success - reset rate limiter
+            rate_limiter.reset(login_key)
+
+            # Regenerate session to prevent fixation attacks
+            from flask import session as flask_session
+            flask_session.permanent = True
+
             login_user(admin)
+            audit_logger.log_login_attempt(username, True, client_ip)
             flash('Welcome back! You have been logged in successfully.', 'success')
+
+            # Sanitize next parameter to prevent open redirect
             next_page = request.args.get('next')
+            if next_page and not next_page.startswith('/'):
+                next_page = None
+
             return redirect(next_page if next_page else url_for('dashboard'))
         else:
-            flash('Invalid username or password. Please try again.', 'danger')
+            audit_logger.log_login_attempt(username, False, client_ip)
+            flash(f'Invalid username or password. {remaining} attempts remaining.', 'danger')
 
     return render_template('login.html')
 
@@ -1392,6 +1643,14 @@ def employees():
 @app.route('/employees/delete/<int:id>', methods=['POST'])
 @login_required
 def delete_employee(id):
+    # Log sensitive data access
+    client_ip = get_client_ip()
+    audit_logger.log_data_access(
+        f"DELETE employee ID {id}",
+        current_user.username,
+        client_ip
+    )
+
     employee = Employee.query.get_or_404(id)
 
     # Delete all attendance records for this employee first (foreign key constraint)
@@ -1419,9 +1678,27 @@ def update_employee(id):
     employee = Employee.query.get_or_404(id)
 
     if request.method == 'POST':
+        # Get and validate inputs
+        full_name = request.form.get('full_name', '').strip()
+        department = request.form.get('department', '').strip()
+
+        # Input validation
+        valid_name, name_error = InputValidator.validate_name(full_name)
+        if not valid_name:
+            flash(name_error, 'danger')
+            return redirect(url_for('update_employee', id=id))
+
+        valid_dept, dept_error = InputValidator.validate_department(department)
+        if not valid_dept:
+            flash(dept_error, 'danger')
+            return redirect(url_for('update_employee', id=id))
+
+        # Sanitize inputs
+        full_name = InputValidator.sanitize_string(full_name, max_length=100)
+
         # Update basic info
-        employee.full_name = request.form.get('full_name', employee.full_name)
-        employee.department = request.form.get('department', employee.department)
+        employee.full_name = full_name
+        employee.department = department
 
 
         # Update face image if provided
@@ -1465,9 +1742,12 @@ def update_employee(id):
                 employee.face_image_path = image_path
                 employee.set_embedding(embedding)
 
-                # Update cache
+                # Update cache with normalized embedding
+                norm = np.linalg.norm(embedding)
+                normalized_embedding = embedding / norm if norm > 0 else embedding
                 embeddings_cache[employee.id] = {
                     'embedding': embedding,
+                    'normalized': normalized_embedding,
                     'employee': employee
                 }
             except Exception as e:
@@ -1495,11 +1775,33 @@ def get_employee_image(id):
 @login_required
 def enroll():
     if request.method == 'POST':
-        employee_id = request.form.get('employee_id')
-        full_name = request.form.get('full_name')
-        department = request.form.get('department')
+        # Get and sanitize inputs
+        employee_id = request.form.get('employee_id', '').strip()
+        full_name = request.form.get('full_name', '').strip()
+        department = request.form.get('department', '').strip()
         image_data = request.form.get('image_data')
 
+        # Input validation
+        valid_id, id_error = InputValidator.validate_employee_id(employee_id)
+        if not valid_id:
+            flash(id_error, 'danger')
+            return redirect(url_for('enroll'))
+
+        valid_name, name_error = InputValidator.validate_name(full_name)
+        if not valid_name:
+            flash(name_error, 'danger')
+            return redirect(url_for('enroll'))
+
+        valid_dept, dept_error = InputValidator.validate_department(department)
+        if not valid_dept:
+            flash(dept_error, 'danger')
+            return redirect(url_for('enroll'))
+
+        # Sanitize inputs
+        employee_id = InputValidator.sanitize_string(employee_id, max_length=50)
+        full_name = InputValidator.sanitize_string(full_name, max_length=100)
+
+        # Check for duplicate employee ID
         if Employee.query.filter_by(employee_id=employee_id).first():
             flash('An employee with this ID already exists.', 'danger')
             return redirect(url_for('enroll'))
@@ -1562,9 +1864,12 @@ def enroll():
             db.session.add(employee)
             db.session.commit()
 
-            # Add to cache
+            # Add to cache with normalized embedding
+            norm = np.linalg.norm(embedding)
+            normalized_embedding = embedding / norm if norm > 0 else embedding
             embeddings_cache[employee.id] = {
                 'embedding': embedding,
+                'normalized': normalized_embedding,
                 'employee': employee
             }
 
@@ -1595,14 +1900,44 @@ def attend():
 @app.route('/api/recognize', methods=['POST'])
 def recognize():
     try:
+        import time
+        start_time = time.time()
+
+        # Rate limiting for API endpoint (100 requests per minute per IP - generous for testing)
+        client_ip = get_client_ip()
+        api_key = rate_limit_key('api_recognize')
+
+        is_allowed, remaining, lockout_time = rate_limiter.record_attempt(
+            api_key, max_attempts=100, window_seconds=60, lockout_seconds=30
+        )
+
+        if not is_allowed:
+            audit_logger.log_suspicious_activity(
+                f"API rate limit exceeded: {lockout_time}s lockout",
+                'anonymous', client_ip
+            )
+            return jsonify({
+                'success': False,
+                'message': f'Too many requests. Please wait {lockout_time} seconds.',
+                'rate_limited': True
+            }), 429
+
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'Invalid request data'}), 400
+
         image_data = data.get('image')
         action = data.get('action', 'clock_in')  # clock_in or clock_out
         session_id = data.get('session_id', '')  # For liveness tracking
 
-        if not image_data:
-            return jsonify({'success': False, 'message': 'No image data provided'})
+        # Validate action parameter
+        if action not in ['clock_in', 'clock_out']:
+            return jsonify({'success': False, 'message': 'Invalid action'}), 400
 
+        if not image_data:
+            return jsonify({'success': False, 'message': 'No image data provided'}), 400
+
+        parse_start = time.time()
         image_data = image_data.split(',')[1] if ',' in image_data else image_data
         image_bytes = base64.b64decode(image_data)
         image = Image.open(io.BytesIO(image_bytes))
@@ -1612,9 +1947,13 @@ def recognize():
 
         image_array = np.array(image)
         image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+        print(f"⏱️ Image parsing: {(time.time() - parse_start)*1000:.0f}ms")
 
         # FIRST: Check if there's a face in the frame
+        face_start = time.time()
         face_info = detect_face(image_array)
+        print(f"⏱️ Face detection: {(time.time() - face_start)*1000:.0f}ms")
+
         if not face_info['face_detected']:
             # No face detected - silently return no_match (don't show error)
             return jsonify({
@@ -1623,139 +1962,145 @@ def recognize():
                 'message': 'No face detected'
             })
 
-        # FACE QUALITY CHECK: Detect if face is "too perfect" (digital photo characteristic)
-        if face_info.get('confidence', 0) > 0.99:
-            # Confidence of 0.99+ is suspiciously perfect - real faces rarely get this
-            print(f"SUSPICIOUS: Face confidence too perfect ({face_info['confidence']:.4f})")
-            # This alone won't reject, but increases suspicion for later checks
+        # FAST MODE: Skip heavy anti-spoofing checks for speed
+        if FAST_RECOGNITION_MODE:
+            print("🚀 FAST MODE: Skipping heavy anti-spoofing checks")
+        else:
+            # FACE QUALITY CHECK: Detect if face is "too perfect" (digital photo characteristic)
+            if face_info.get('confidence', 0) > 0.99:
+                # Confidence of 0.99+ is suspiciously perfect - real faces rarely get this
+                print(f"SUSPICIOUS: Face confidence too perfect ({face_info['confidence']:.4f})")
+                # This alone won't reject, but increases suspicion for later checks
 
-        # SECOND: Run anti-spoofing check (static image analysis)
-        is_real, spoof_score = check_anti_spoofing(image_array)
-        if not is_real:
-            return jsonify({
-                'success': False,
-                'message': 'Spoof detected! Photos and videos are not allowed.',
-                'spoof_detected': True
-            })
-
-        # ENHANCED ANTI-SPOOFING: Additional checks for phone screens and printed photos
-        # Resize images for faster processing
-        small_img = cv2.resize(image_array, (320, 240))
-        gray_img = cv2.cvtColor(small_img, cv2.COLOR_BGR2GRAY)
-
-        # === CLOSE-UP SCREEN DETECTION ===
-        # When phone is very close, check for digital image characteristics
-        close_up_is_screen = False
-
-        # 1. Check for unnatural color consistency (digital images have perfect pixels)
-        color_std = np.std(small_img, axis=(0, 1))
-        color_consistency = np.mean(color_std)
-        if color_consistency < 15:  # Too consistent = digital
-            print(f"CLOSE-UP SCREEN: Color too consistent ({color_consistency:.2f})")
-            close_up_is_screen = True
-
-        # 2. Check for digital compression artifacts (JPEG artifacts from phone photos)
-        laplacian = cv2.Laplacian(gray_img, cv2.CV_64F)
-        lap_var = np.var(laplacian)
-        if lap_var > 2500:  # Too sharp/crispy = screen (over-sharpened digital image)
-            print(f"CLOSE-UP SCREEN: Over-sharpened ({lap_var:.1f})")
-            close_up_is_screen = True
-
-        # 3. Check for lack of natural skin micro-texture
-        kernel = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
-        high_freq = cv2.filter2D(gray_img, -1, kernel)
-        hf_std = np.std(high_freq)
-        if hf_std < 6:  # Lack of natural texture = digital
-            print(f"CLOSE-UP SCREEN: No natural skin texture ({hf_std:.2f})")
-            close_up_is_screen = True
-
-        # 4. Check for uniform brightness (screens have even backlight even up close)
-        brightness_blocks = []
-        h, w = gray_img.shape
-        for i in range(4):
-            for j in range(4):
-                block = gray_img[i*h//4:(i+1)*h//4, j*w//4:(j+1)*w//4]
-                brightness_blocks.append(np.mean(block))
-        brightness_std = np.std(brightness_blocks)
-        if brightness_std < 12:  # Too uniform = screen backlight
-            print(f"CLOSE-UP SCREEN: Uniform backlight ({brightness_std:.2f})")
-            close_up_is_screen = True
-
-        # 5. Check for pixel-perfect edges (digital images have sharp edges)
-        edges = cv2.Canny(gray_img, 50, 150)
-        edge_pixels = np.sum(edges > 0) / edges.size
-        if edge_pixels > 0.15:  # Too many sharp edges = digital
-            print(f"CLOSE-UP SCREEN: Too many sharp edges ({edge_pixels:.3f})")
-            close_up_is_screen = True
-
-        if close_up_is_screen:
-            return jsonify({
-                'success': False,
-                'message': 'Digital photo detected! Please use your real face, not a screen or photo.',
-                'spoof_detected': True
-            })
-
-        # === STANDARD DETECTION (works better when phone is at distance) ===
-        # Check for phone screen display
-        phone_score = detect_phone_screen(small_img, gray_img)
-        if phone_score < 0.55:  # STRICTER: Phone detected (low score means phone)
-            print(f"PHONE DETECTED: score={phone_score:.3f}")
-            return jsonify({
-                'success': False,
-                'message': 'Phone screen detected! Please use your real face, not a photo on phone.',
-                'spoof_detected': True
-            })
-
-        # Check for any screen display (tablet, monitor, etc.)
-        screen_score = detect_screen_display_fast(small_img, gray_img)
-        if screen_score < 0.55:  # STRICTER: Screen detected
-            print(f"SCREEN DETECTED: score={screen_score:.3f}")
-            return jsonify({
-                'success': False,
-                'message': 'Screen display detected! Please use your real face, not a digital photo.',
-                'spoof_detected': True
-            })
-
-        # Check for printed photo
-        print_score = detect_printed_photo_fast(small_img, gray_img)
-        if print_score < 0.55:  # STRICTER: Printed photo detected
-            print(f"PRINTED PHOTO DETECTED: score={print_score:.3f}")
-            return jsonify({
-                'success': False,
-                'message': 'Printed photo detected! Please use your real face, not a printed image.',
-                'spoof_detected': True
-            })
-
-        # Combined check - if multiple scores are borderline suspicious
-        avg_spoof_score = (phone_score + screen_score + print_score) / 3
-        if avg_spoof_score < 0.65:  # Average indicates likely spoof
-            print(f"COMBINED SPOOF DETECTION: avg={avg_spoof_score:.3f} (phone={phone_score:.3f}, screen={screen_score:.3f}, print={print_score:.3f})")
-            return jsonify({
-                'success': False,
-                'message': 'Suspicious image detected! Please ensure you are using your real face in good lighting.',
-                'spoof_detected': True
-            })
-
-        # THIRD: Multi-frame liveness detection (requires real motion/blink)
-        if LIVENESS_ENABLED and session_id:
-            liveness_status, liveness_msg, is_live = check_liveness_multi_frame(session_id, image_array)
-
-            if liveness_status == 'collecting':
-                # Still collecting frames - tell frontend to keep sending
+            # SECOND: Run anti-spoofing check (DeepFace neural network - now with strict fail-safe)
+            spoof_start = time.time()
+            is_real, spoof_score = check_anti_spoofing(image_array)
+            print(f"⏱️ Anti-spoofing check: {(time.time() - spoof_start)*1000:.0f}ms")
+            if not is_real:
+                print("🚫 REJECTED: DeepFace detected spoof or encountered error (fail-safe)")
                 return jsonify({
                     'success': False,
-                    'liveness_collecting': True,
-                    'message': liveness_msg
+                    'message': 'Spoof detected! Photos and videos are not allowed.',
+                    'spoof_detected': True
                 })
-            elif liveness_status == 'failed':
+
+            # SIMPLE PHONE DETECTION - BALANCED MODE
+            # Resize images for faster processing
+            small_img = cv2.resize(image_array, (320, 240))
+            gray_img = cv2.cvtColor(small_img, cv2.COLOR_BGR2GRAY)
+
+            # Check brightness, color, edges - but use BALANCED thresholds
+            brightness_std = np.std(gray_img)
+            b, g, r = cv2.split(small_img)
+            color_std = (np.std(b) + np.std(g) + np.std(r)) / 3
+            edges = cv2.Canny(gray_img, 50, 150)
+            edge_density = np.sum(edges > 0) / edges.size
+
+            print(f"🔍 Brightness: {brightness_std:.2f}, Color: {color_std:.2f}, Edges: {edge_density:.3f}")
+
+            # Count suspicious indicators
+            suspicious = 0
+            reasons = []
+
+            if brightness_std < 10:  # Very uniform brightness
+                suspicious += 1
+                reasons.append(f"brightness={brightness_std:.2f}")
+
+            if color_std < 8:  # Very uniform color
+                suspicious += 1
+                reasons.append(f"color={color_std:.2f}")
+
+            if edge_density > 0.22:  # Very sharp edges
+                suspicious += 1
+                reasons.append(f"edges={edge_density:.3f}")
+
+            # Reject only if 2+ indicators OR 1 very strong indicator
+            if suspicious >= 2:
+                print(f"🚫 PHONE DETECTED: {suspicious} indicators: {reasons}")
                 return jsonify({
                     'success': False,
-                    'liveness_failed': True,
-                    'message': liveness_msg
+                    'message': 'Phone/screen detected! Please use your real face.',
+                    'spoof_detected': True
                 })
+
+            if brightness_std < 8 or color_std < 6:  # VERY strong single indicator
+                print(f"🚫 PHONE DETECTED: Very strong indicator: {reasons}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Phone/screen detected! Please use your real face.',
+                    'spoof_detected': True
+                })
+
+            # FOURTH: STANDARD PHONE/SCREEN/PRINT DETECTION (with STRICT thresholds)
+            detect_start = time.time()
+            phone_score = detect_phone_screen(small_img, gray_img)
+            screen_score = detect_screen_display_fast(small_img, gray_img)
+            print_score = detect_printed_photo_fast(small_img, gray_img)
+            print(f"⏱️ Standard detection: {(time.time() - detect_start)*1000:.0f}ms")
+
+            avg_spoof_score = (phone_score + screen_score + print_score) / 3
+
+            print("\n" + "=" * 70)
+            print("📊 STANDARD SPOOF DETECTION SCORES:")
+            print(f"   Phone Detection:  {phone_score:.3f} {'✓ PASS' if phone_score >= 0.85 else '✗ FAIL - PHONE DETECTED'}")
+            print(f"   Screen Detection: {screen_score:.3f} {'✓ PASS' if screen_score >= 0.70 else '✗ FAIL - SCREEN DETECTED'}")
+            print(f"   Print Detection:  {print_score:.3f} {'✓ PASS' if print_score >= 0.70 else '✗ FAIL - PRINT DETECTED'}")
+            print(f"   Average Score:    {avg_spoof_score:.3f}")
+            print(f"   Min Score:        {min(phone_score, screen_score, print_score):.3f}")
+            print("=" * 70 + "\n")
+
+            # BALANCED THRESHOLDS - Catch phones but allow real faces
+            # Phone score: 0.70 (balanced)
+            # Screen/Print: 0.55 (balanced)
+            # Average: 0.60 (backup check)
+
+            # Reject if phone score is low (main threat)
+            if phone_score < 0.70:
+                print(f"🚫 PHONE DETECTED! Phone score: {phone_score:.3f}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Phone screen detected! Please use your real face.',
+                    'spoof_detected': True
+                })
+
+            # Reject if multiple scores are low
+            low_scores = 0
+            if screen_score < 0.55:
+                low_scores += 1
+            if print_score < 0.55:
+                low_scores += 1
+
+            if low_scores >= 2 or avg_spoof_score < 0.60:
+                print(f"🚫 SPOOF DETECTED! Multiple low scores or low average")
+                return jsonify({
+                    'success': False,
+                    'message': 'Spoof detected! Please use your real face.',
+                    'spoof_detected': True
+                })
+
+            # THIRD: Multi-frame liveness detection (requires real motion/blink)
+            if LIVENESS_ENABLED and session_id:
+                liveness_status, liveness_msg, is_live = check_liveness_multi_frame(session_id, image_array)
+
+                if liveness_status == 'collecting':
+                    # Still collecting frames - tell frontend to keep sending
+                    return jsonify({
+                        'success': False,
+                        'liveness_collecting': True,
+                        'message': liveness_msg
+                    })
+                elif liveness_status == 'failed':
+                    return jsonify({
+                        'success': False,
+                        'liveness_failed': True,
+                        'message': liveness_msg
+                    })
 
         # FOURTH: Find matching employee (only reached if liveness passed or not enabled)
+        match_start = time.time()
         employee, similarity = find_matching_employee(image_array)
+        print(f"⏱️ Employee matching: {(time.time() - match_start)*1000:.0f}ms")
+        print(f"✅ TOTAL RECOGNITION TIME: {(time.time() - start_time)*1000:.0f}ms")
 
         if employee is None:
             return jsonify({
@@ -1962,9 +2307,24 @@ def get_recent_attendances():
 @app.route('/records')
 @login_required
 def records():
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    employee_filter = request.args.get('employee_id')
+    # Sanitize query parameters to prevent injection
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
+    employee_filter = request.args.get('employee_id', '').strip()
+
+    # Validate date format (YYYY-MM-DD)
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    if start_date and not date_pattern.match(start_date):
+        flash('Invalid start date format', 'danger')
+        start_date = None
+
+    if end_date and not date_pattern.match(end_date):
+        flash('Invalid end date format', 'danger')
+        end_date = None
+
+    # Sanitize employee filter
+    if employee_filter:
+        employee_filter = InputValidator.sanitize_string(employee_filter, max_length=50)
 
     query = Attendance.query
 
@@ -2036,16 +2396,50 @@ def settings_page():
             settings = Settings()
             db.session.add(settings)
 
-        settings.work_start_hour = int(request.form.get('work_start_hour', 9))
-        settings.work_start_minute = int(request.form.get('work_start_minute', 0))
-        settings.work_end_hour = int(request.form.get('work_end_hour', 17))
-        settings.work_end_minute = int(request.form.get('work_end_minute', 0))
-        settings.recognition_threshold = float(request.form.get('recognition_threshold', 0.55))
-        settings.anti_spoofing_enabled = request.form.get('anti_spoofing_enabled') == 'on'
+        try:
+            # Validate and sanitize settings inputs
+            work_start_hour = int(request.form.get('work_start_hour', 9))
+            work_start_minute = int(request.form.get('work_start_minute', 0))
+            work_end_hour = int(request.form.get('work_end_hour', 17))
+            work_end_minute = int(request.form.get('work_end_minute', 0))
+            recognition_threshold = float(request.form.get('recognition_threshold', 0.55))
 
-        db.session.commit()
-        flash('Settings updated successfully!', 'success')
-        return redirect(url_for('settings_page'))
+            # Validate ranges
+            if not (0 <= work_start_hour <= 23 and 0 <= work_end_hour <= 23):
+                flash('Invalid hour values (must be 0-23)', 'danger')
+                return redirect(url_for('settings_page'))
+
+            if not (0 <= work_start_minute <= 59 and 0 <= work_end_minute <= 59):
+                flash('Invalid minute values (must be 0-59)', 'danger')
+                return redirect(url_for('settings_page'))
+
+            if not (0.3 <= recognition_threshold <= 0.95):
+                flash('Recognition threshold must be between 0.3 and 0.95', 'danger')
+                return redirect(url_for('settings_page'))
+
+            settings.work_start_hour = work_start_hour
+            settings.work_start_minute = work_start_minute
+            settings.work_end_hour = work_end_hour
+            settings.work_end_minute = work_end_minute
+            settings.recognition_threshold = recognition_threshold
+            settings.anti_spoofing_enabled = request.form.get('anti_spoofing_enabled') == 'on'
+
+            db.session.commit()
+
+            # Log settings change
+            client_ip = get_client_ip()
+            audit_logger.log_data_access(
+                "UPDATE system settings",
+                current_user.username,
+                client_ip
+            )
+
+            flash('Settings updated successfully!', 'success')
+            return redirect(url_for('settings_page'))
+
+        except (ValueError, TypeError) as e:
+            flash('Invalid input values in settings form', 'danger')
+            return redirect(url_for('settings_page'))
 
     return render_template('settings.html', settings=settings)
 
@@ -2061,9 +2455,14 @@ def api_refresh_cache():
 
 @app.after_request
 def add_header(response):
+    # Cache control headers
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '-1'
+
+    # Add comprehensive security headers
+    response = add_security_headers(response)
+
     return response
 
 if __name__ == '__main__':

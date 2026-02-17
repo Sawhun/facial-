@@ -5,6 +5,11 @@ import pickle
 
 db = SQLAlchemy()
 
+# Import encryption manager (lazy import to avoid circular dependency)
+def _get_encryption_manager():
+    from security import get_encryption_manager
+    return get_encryption_manager()
+
 class Admin(UserMixin, db.Model):
     __tablename__ = 'admins'
 
@@ -45,14 +50,32 @@ class Employee(db.Model):
     # -------------------------------
 
     def set_embedding(self, embedding_array):
-        """Save numpy embedding array as pickle binary."""
-        self.face_embedding = pickle.dumps(embedding_array)
+        """
+        Save numpy embedding array as encrypted pickle binary.
+        Implements encryption at rest for sensitive biometric data.
+        """
+        pickled = pickle.dumps(embedding_array)
+        # Encrypt the pickled embedding before storing
+        enc_manager = _get_encryption_manager()
+        self.face_embedding = enc_manager.encrypt_embedding(pickled)
 
     def get_embedding(self):
-        """Return embedding as numpy array or None."""
+        """
+        Return embedding as numpy array or None.
+        Automatically decrypts the stored embedding.
+        """
         if not self.face_embedding:
             return None
-        return pickle.loads(self.face_embedding)
+        try:
+            # Decrypt the embedding first
+            enc_manager = _get_encryption_manager()
+            decrypted = enc_manager.decrypt_embedding(self.face_embedding)
+            if decrypted is None:
+                return None
+            return pickle.loads(decrypted)
+        except Exception as e:
+            print(f"Error decrypting embedding: {e}")
+            return None
 
 
 class Attendance(db.Model):

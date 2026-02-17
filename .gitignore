@@ -6,6 +6,13 @@ __pycache__/
 # Flask
 instance/
 .env
+.env.local
+
+# Security
+logs/
+*.log
+backup_*.db
+encryption_key.txt
 
 # IDE
 .vscode/
